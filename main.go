@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -25,12 +24,7 @@ func TestJSONPost(w http.ResponseWriter, r *http.Request) {
 	var jtaData jtaRequest
 
 	defer r.Body.Close()
-	reqBody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read passed bytes", http.StatusBadRequest)
-		return
-	}
-	err = json.Unmarshal(reqBody, &jtaData)
+	err := json.NewDecoder(r.Body).Decode(&jtaData)
 	if err != nil {
 		http.Error(w, "JSON Data is invalid.", http.StatusBadRequest)
 		return
