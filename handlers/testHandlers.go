@@ -3,19 +3,17 @@ package handlers
 import (
 	"log"
 	"net/http"
-
-	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 )
 
 func TestJSONPost(w http.ResponseWriter, r *http.Request) {
-	jtaData := data.NewJTB()
+	jtaData := NewJTB()
 
 	if err := jtaData.LoadFromJSON(r); err != nil {
-		data.ErrorWithJSON(w, "JSON Data is invalid.", http.StatusBadRequest)
+		ErrorWithJSON(w, "JSON Data is invalid.", http.StatusBadRequest)
 		return
 	}
 	if err := jtaData.Validate(); err != nil {
-		data.ErrorWithJSON(w, err.Error(), http.StatusBadRequest)
+		ErrorWithJSON(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	resp, err := jtaData.DumpToJSON()
