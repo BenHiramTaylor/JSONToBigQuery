@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"reflect"
+	"sync"
 )
 
 type FieldType []string
@@ -71,6 +72,49 @@ func (s *Schema) GenerateSchemaFields() {
 			}
 		}
 	}
+}
+
+// TODO SORT THIS OUT LATER
+func (s *Schema) EqualiseData() {
+	var (
+		rawWg sync.WaitGroup
+		eqWg  sync.WaitGroup
+		mx    sync.Mutex
+		rChan chan map[string]interface{}
+		fChan chan map[string]interface{}
+	)
+	eqWg.Add(1)
+	go func() {
+		for rec := range fChan {
+
+		}
+	}()
+	for i := 0; i < 100; i++ {
+		rawWg.Add(1)
+		go func() {
+			defer rawWg.Done()
+			tempMap := make(map[string]interface{})
+			for rec := range rChan {
+				for _, f := range s.Fields {
+					for k, v := range rec {
+						// IF SCHEMA KEY IS IN RECORD THEN BREAK, ELSE KEEP LOOKING IN REC
+						if k == f.Name {
+							tempMap[k] = v
+							break
+						} else if k != f.Name {
+							tempMap[k] = v
+							continue
+						}
+
+					}
+					tempMap[f.Name] = nil
+				}
+			}
+			fChan <- tempMap
+		}()
+	}
+	rawWg.Wait()
+	log.Println("Equalised all data.")
 }
 
 func (s *Schema) ToJSON() ([]byte, error) {

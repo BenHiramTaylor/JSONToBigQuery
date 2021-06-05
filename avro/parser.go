@@ -66,6 +66,7 @@ func ParseRequest(request *data.JtBRequest) (Schema, error) {
 	log.Printf("%v", schema.FormattedRecords)
 	log.Println("Generating Schema.")
 	schema.GenerateSchemaFields()
+	schema.EqualiseData()
 	log.Printf("%#v", schema)
 	return *schema, nil
 }

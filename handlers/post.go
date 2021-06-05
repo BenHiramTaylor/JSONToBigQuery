@@ -29,16 +29,14 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("%#v", jtaData)
-	os.Mkdir(jtaData.DatasetName, os.ModePerm)
-	// TODO HANDLE THIS BETTER LATER
+	err = os.Mkdir(jtaData.DatasetName, os.ModePerm)
 	if err != nil {
-		panic(err.Error())
+		log.Printf("Error creating folder: %v", err.Error())
 	}
 	s, err := avro.ParseRequest(jtaData)
 	err = s.ToFile(jtaData.DatasetName)
-	// TODO CHANGE THIS LATER
 	if err != nil {
-		panic(err.Error())
+		log.Printf("Error dumping schema to avsc file: %v", err.Error())
 	}
 	// THIS IS TEST LOGIC TO RETURN SAME ITEM
 	sJSON, err := json.Marshal(s)
