@@ -2,7 +2,9 @@ package avro
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"reflect"
 )
@@ -77,4 +79,16 @@ func (s *Schema) ToJSON() ([]byte, error) {
 
 func (s *Schema) FromJSON(fileReader io.Reader) error {
 	return json.NewDecoder(fileReader).Decode(&s)
+}
+
+func (s *Schema) ToFile(dataset string) error {
+	JSONb, err := s.ToJSON()
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", dataset, s.Namespace), JSONb, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
 }

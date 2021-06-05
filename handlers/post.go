@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/BenHiramTaylor/JSONToBigQuery/avro"
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
@@ -28,7 +29,17 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("%#v", jtaData)
+	os.Mkdir(jtaData.DatasetName, os.ModePerm)
+	// TODO HANDLE THIS BETTER LATER
+	if err != nil {
+		panic(err.Error())
+	}
 	s, err := avro.ParseRequest(jtaData)
+	err = s.ToFile(jtaData.DatasetName)
+	// TODO CHANGE THIS LATER
+	if err != nil {
+		panic(err.Error())
+	}
 	// THIS IS TEST LOGIC TO RETURN SAME ITEM
 	sJSON, err := json.Marshal(s)
 	if err != nil {
