@@ -34,8 +34,8 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	w.WriteHeader(http.StatusOK)
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
 	w.Write(sJSON)
 	// TODO PARSE LOGIC HERE
 }
