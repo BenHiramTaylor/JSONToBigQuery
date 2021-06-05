@@ -4,11 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
-)
-
-var (
-	KeyList          []string
-	FormattedRecords []map[string]interface{}
+	"reflect"
 )
 
 type FieldType []string
@@ -23,6 +19,8 @@ type Schema struct {
 	Name      string  `json:"name"`
 	Namespace string  `json:"namespace"`
 	Fields    []Field `json:"fields"`
+	// CHANGE JSON TAG TO - WHEN DONE TO PREVENT EXPORTING TO AVRO FILE
+	FormattedRecords []map[string]interface{} `json:"FormattedRecords"`
 }
 
 func NewSchema(name string, namespace string) *Schema {
@@ -35,10 +33,8 @@ func NewField(name string, fieldType string) *Field {
 }
 
 func (s *Schema) AddField(FieldName, Type string) {
-	// TODO NEED TO REFACTOR THIS TO USE EITHER MUTEX OR CHANNELS
 	for i, f := range s.Fields {
 		if f.Name == FieldName {
-			log.Printf("Field %v already exists in Schema: %v", FieldName, s.Namespace)
 			for _, fv := range f.FieldType {
 				if fv == "null" {
 					continue
@@ -52,9 +48,27 @@ func (s *Schema) AddField(FieldName, Type string) {
 			}
 		}
 	}
+
 	nf := NewField(FieldName, Type)
 	log.Printf("New Field Added to %v : %#v", s.Namespace, nf)
 	s.Fields = append(s.Fields, *nf)
+}
+
+func (s *Schema) GenerateSchemaFields() {
+	for _, rec := range s.FormattedRecords {
+		for k, v := range rec {
+			switch reflect.ValueOf(v).Kind() {
+			case reflect.String:
+				s.AddField(k, "string")
+			case reflect.Int64, reflect.Uint64:
+				s.AddField(k, "long")
+			case reflect.Bool:
+				s.AddField(k, "boolean")
+			default:
+				s.AddField(k, "int")
+			}
+		}
+	}
 }
 
 func (s *Schema) ToJSON() ([]byte, error) {
