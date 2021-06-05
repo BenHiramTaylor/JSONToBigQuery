@@ -77,43 +77,48 @@ func (s *Schema) GenerateSchemaFields() {
 // TODO SORT THIS OUT LATER
 func (s *Schema) EqualiseData() {
 	var (
-		rawWg sync.WaitGroup
-		eqWg  sync.WaitGroup
-		mx    sync.Mutex
-		rChan chan map[string]interface{}
-		fChan chan map[string]interface{}
+		rawWg   sync.WaitGroup
+		eqWg    sync.WaitGroup
+		mx      sync.Mutex
+		fChan   chan map[string]interface{}
+		eqSlice []map[string]interface{}
 	)
-	eqWg.Add(1)
-	go func() {
-		for rec := range fChan {
-
-		}
-	}()
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 5; i++ {
+		eqWg.Add(1)
+		go func() {
+			defer eqWg.Done()
+			for rec := range fChan {
+				mx.Lock()
+				eqSlice = append(eqSlice, rec)
+				mx.Unlock()
+			}
+		}()
+	}
+	for _, rec := range s.FormattedRecords {
 		rawWg.Add(1)
 		go func() {
 			defer rawWg.Done()
 			tempMap := make(map[string]interface{})
-			for rec := range rChan {
-				for _, f := range s.Fields {
-					for k, v := range rec {
-						// IF SCHEMA KEY IS IN RECORD THEN BREAK, ELSE KEEP LOOKING IN REC
-						if k == f.Name {
-							tempMap[k] = v
-							break
-						} else if k != f.Name {
-							tempMap[k] = v
-							continue
-						}
-
+			for _, f := range s.Fields {
+				for k, v := range rec {
+					// IF SCHEMA KEY IS IN RECORD THEN BREAK, ELSE KEEP LOOKING IN REC
+					if k == f.Name {
+						tempMap[k] = v
+						break
+					} else if k != f.Name {
+						tempMap[k] = v
+						continue
 					}
-					tempMap[f.Name] = nil
+
 				}
+				tempMap[f.Name] = nil
 			}
 			fChan <- tempMap
 		}()
 	}
 	rawWg.Wait()
+	close(fChan)
+	eqWg.Wait()
 	log.Println("Equalised all data.")
 }
 
