@@ -3,6 +3,7 @@ module github.com/BenHiramTaylor/JSONToBigQuery
 go 1.16
 
 require (
+	cloud.google.com/go/bigquery v1.18.0 // indirect
 	cloud.google.com/go/storage v1.15.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-playground/universal-translator v0.17.0 // indirect
