@@ -66,9 +66,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	err = gcp.CreateBucket(storClient, jtaData.ProjectID, bucketName)
 	if err != nil {
 		if e, ok := err.(*googleapi.Error); ok {
-			if e.Code == 409 {
-				log.Println("BUCKET ALREADY EXISTS")
-			} else {
+			if e.Code != 409 {
 				log.Printf("ERROR CREATING BUCKET: %v", err.Error())
 			}
 		}
