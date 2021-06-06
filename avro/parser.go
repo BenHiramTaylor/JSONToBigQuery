@@ -1,7 +1,9 @@
 package avro
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"reflect"
 	"sync"
@@ -20,9 +22,16 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 	rawChan := make(chan map[string]interface{})
 
 	// GENERATE SCHEMA NAMES
-	avroName := fmt.Sprintf("%v.%v", request.DatasetName, request.TableName)
+	avroName := fmt.Sprintf("%v", request.TableName)
 	avroNameSpace := fmt.Sprintf("%v.avsc", avroName)
 	schema := NewSchema(avroName, avroNameSpace)
+
+	// TRY TO LOAD AVSC FILE
+	avscData, err := ioutil.ReadFile(fmt.Sprintf("%v/%v.avsc", request.DatasetName, request.TableName))
+	err = json.Unmarshal(avscData, schema)
+	if err != nil {
+		log.Printf("ERROR READING AVSC FILE: %v", err.Error())
+	}
 
 	log.Printf("Starting to parse %v records", len(request.Data))
 	// GOROUTINE FOR ADDING FORMATTED RECS TO STRING
@@ -39,7 +48,6 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 		go func() {
 			defer parseWg.Done()
 			for rec := range rawChan {
-				log.Printf("Formatting record: %v", rec)
 				formattedRec := make(map[string]interface{})
 				ParseRecord(rec, "", formattedRec, fChan)
 			}
@@ -58,8 +66,6 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 
 	// ADD THE SLICE OF FORMATTED RECORDS TO THE SCHEMA STRUCT FOR EASIER METHOD ACCESS LATER
 	log.Println("Finished parsing all records.")
-	log.Printf("%v", ParsedRecs)
-	log.Println("Generating Schema.")
 	schema.GenerateSchemaFields(ParsedRecs)
 	ParsedRecsWithNulls := schema.AddNulls(ParsedRecs)
 	log.Printf("%v", ParsedRecsWithNulls)

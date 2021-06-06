@@ -2,24 +2,32 @@ package gcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
 	"time"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/option"
 )
 
-func GetClient(credsJSON []byte) (storage.Client, error) {
+func GetClient(credsMap map[string]interface{}) (*storage.Client, error) {
+	credsJSON, err := json.Marshal(credsMap)
+	if err != nil {
+		return nil, err
+	}
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx, option.WithCredentialsJSON(credsJSON))
 	if err != nil {
-		return *client, err
+		return nil, err
 	}
-	return *client, nil
+	log.Println("Created Storage Client")
+	return client, nil
 }
 
-func DownloadBlobFromStorage(client storage.Client, bucketName, dataset, fileName string) error {
+func DownloadBlobFromStorage(client *storage.Client, bucketName, dataset, fileName string) error {
 	blobName := fmt.Sprintf("%v/%v", dataset, fileName)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
@@ -39,7 +47,25 @@ func DownloadBlobFromStorage(client storage.Client, bucketName, dataset, fileNam
 	return nil
 }
 
-func CreateBucket(client storage.Client, projectID, bucketName string) error {
+func UploadBlobToStorage(client *storage.Client, bucketName, dataset, fileName string) error {
+	blobName := fmt.Sprintf("%v/%v", dataset, fileName)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+	defer cancel()
+	data, err := ioutil.ReadFile(blobName)
+	w := client.Bucket(bucketName).Object(blobName).NewWriter(ctx)
+	defer w.Close()
+	_, err = w.Write(data)
+	if err != nil {
+		return err
+	}
+	if err = os.Remove(blobName); err != nil {
+		return err
+	}
+	log.Printf("uploaded %v to %v", blobName, bucketName)
+	return nil
+}
+
+func CreateBucket(client *storage.Client, projectID, bucketName string) error {
 	ctx := context.Background()
 	bkt := client.Bucket(bucketName)
 	if err := bkt.Create(ctx, projectID, nil); err != nil {

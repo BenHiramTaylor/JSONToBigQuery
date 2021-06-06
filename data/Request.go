@@ -12,6 +12,7 @@ type JtBRequest struct {
 	DatasetName string                   `json:"DatasetName" validate:"required"`
 	TableName   string                   `json:"TableName" validate:"required"`
 	IdField     string                   `json:"IdField"`
+	AuthJSON    map[string]interface{}   `json:"AuthJSON" validate:"required"`
 	Data        []map[string]interface{} `json:"Data" validate:"required"`
 }
 
