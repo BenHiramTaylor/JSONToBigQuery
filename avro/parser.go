@@ -11,7 +11,20 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 )
 
-func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, error) {
+func bqsFromFile(fileName string) map[string]interface{} {
+	bqs := make(map[string]interface{})
+	fData, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		log.Printf("ERROR LOADING BQS FROM FILE: %v", err.Error())
+	}
+	err = json.Unmarshal(fData, &bqs)
+	if err != nil {
+		log.Printf("ERROR LOADING BQS FILE DATA INTO BQS TYPE")
+	}
+	return bqs
+}
+
+func ParseRequest(request *data.JtBRequest) (Schema, map[string]interface{}, []map[string]interface{}, error) {
 	// GENERATE VARS
 	var (
 		parseWg    sync.WaitGroup
@@ -34,6 +47,8 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 	} else {
 		log.Printf("LOADED SCHEMA FROM GCS: %#v", schema)
 	}
+	// TRY TO LOAD BQS FILE
+	bqsFromFile(fmt.Sprintf("%v/%v.bqs", request.DatasetName, request.TableName))
 
 	log.Printf("Starting to parse %v records", len(request.Data))
 	// GOROUTINE FOR ADDING FORMATTED RECS TO STRING
@@ -72,7 +87,8 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 	ParsedRecsWithNulls := schema.AddNulls(ParsedRecs)
 	log.Printf("%v", ParsedRecsWithNulls)
 	log.Printf("%#v", schema)
-	return *schema, ParsedRecsWithNulls, nil
+	// TODO CHANGE THE SECOND NIL TO BQSCHEMA
+	return *schema, nil, ParsedRecsWithNulls, nil
 }
 func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}) {
 	sendOnChan := true
