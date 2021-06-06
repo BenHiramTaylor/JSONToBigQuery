@@ -47,4 +47,8 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write(sJSON)
 	// TODO PARSE LOGIC HERE
+	err = os.Remove(jtaData.DatasetName)
+	if err != nil {
+		log.Printf("Failed to Delete Folder: %v", jtaData.DatasetName)
+	}
 }
