@@ -31,6 +31,8 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 	err = json.Unmarshal(avscData, schema)
 	if err != nil {
 		log.Printf("ERROR READING AVSC FILE: %v", err.Error())
+	} else {
+		log.Printf("LOADED SCHEMA FROM GCS: %#v", schema)
 	}
 
 	log.Printf("Starting to parse %v records", len(request.Data))
