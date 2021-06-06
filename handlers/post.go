@@ -83,7 +83,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// BEGIN PARSING THE REQUEST USING THE AVRO MODULE, THIS FORMATS DATA AND CREATES SCHEMA
-	s, formattedData, err := avro.ParseRequest(jtaData)
+	s, _, formattedData, err := avro.ParseRequest(jtaData)
 
 	// DUMP THE AVSC TO FILE
 	err = s.ToFile(jtaData.DatasetName)
@@ -115,9 +115,12 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	w.Header().Add("Content-Type", "applicatio,n/json; charset=utf-8")
+	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write(sJSON)
+	_, err = w.Write(sJSON)
+	if err != nil {
+		log.Fatalln("COULD NOT WRITE RESPONSE")
+	}
 	// TODO PARSE LOGIC HERE
 
 	// DELETE THE FOLDER WHEN DONE
