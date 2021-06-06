@@ -85,31 +85,33 @@ func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[strin
 	eqWg.Add(1)
 	go func() {
 		for rec := range fChan {
-
+			FormattedRecordsNulls = append(FormattedRecordsNulls, rec)
 		}
 	}()
 	for i := 0; i < 100; i++ {
 		rawWg.Add(1)
 		go func() {
 			defer rawWg.Done()
-			tempMap := make(map[string]interface{})
 			for rec := range rChan {
+				exists := false
 				for _, f := range s.Fields {
-					for k, v := range rec {
+					for k := range rec {
 						// IF SCHEMA KEY IS IN RECORD THEN BREAK, ELSE KEEP LOOKING IN REC
 						if k == f.Name {
-							tempMap[k] = v
+							exists = true
 							break
 						} else if k != f.Name {
-							tempMap[k] = v
 							continue
 						}
-
 					}
-					tempMap[f.Name] = nil
+					if !exists {
+						rec[f.Name] = nil
+					}
+
 				}
+				fChan <- rec
 			}
-			fChan <- tempMap
+
 		}()
 	}
 	for _, v := range FormattedRecords {
