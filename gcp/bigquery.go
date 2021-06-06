@@ -6,7 +6,7 @@ import (
 	"cloud.google.com/go/bigquery"
 )
 
-func updateTableAddColumn(client *bigquery.Client, datasetID, tableID, fieldName, fieldType string) error {
+func updateTableAddColumn(client *bigquery.Client, datasetID, tableID, fieldName string, fieldType bigquery.FieldType) error {
 	ctx := context.Background()
 	tableRef := client.Dataset(datasetID).Table(tableID)
 	meta, err := tableRef.Metadata(ctx)
