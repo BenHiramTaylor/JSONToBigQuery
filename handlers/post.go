@@ -33,7 +33,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error creating folder: %v", err.Error())
 	}
-	s, err := avro.ParseRequest(jtaData)
+	s, _, err := avro.ParseRequest(jtaData)
 	err = s.ToFile(jtaData.DatasetName)
 	if err != nil {
 		log.Printf("Error dumping schema to avsc file: %v", err.Error())

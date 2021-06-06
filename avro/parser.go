@@ -9,13 +9,12 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 )
 
-func ParseRequest(request *data.JtBRequest) (Schema, error) {
+func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, error) {
 	// GENERATE VARS
 	var (
-		parseWg          sync.WaitGroup
-		formWg           sync.WaitGroup
-		mx               sync.Mutex
-		FormattedRecords []map[string]interface{}
+		parseWg    sync.WaitGroup
+		formWg     sync.WaitGroup
+		ParsedRecs []map[string]interface{}
 	)
 	fChan := make(chan map[string]interface{})
 	rawChan := make(chan map[string]interface{})
@@ -27,17 +26,14 @@ func ParseRequest(request *data.JtBRequest) (Schema, error) {
 
 	log.Printf("Starting to parse %v records", len(request.Data))
 	// GOROUTINE FOR ADDING FORMATTED RECS TO STRING
-	for i := 0; i < 2; i++ {
-		formWg.Add(1)
-		go func() {
-			defer formWg.Done()
-			for rec := range fChan {
-				mx.Lock()
-				FormattedRecords = append(FormattedRecords, rec)
-				mx.Unlock()
-			}
-		}()
-	}
+	formWg.Add(1)
+	go func() {
+		defer formWg.Done()
+		for rec := range fChan {
+			ParsedRecs = append(ParsedRecs, rec)
+		}
+	}()
+
 	for i := 0; i < 100; i++ {
 		parseWg.Add(1)
 		go func() {
@@ -61,16 +57,17 @@ func ParseRequest(request *data.JtBRequest) (Schema, error) {
 	formWg.Wait()
 
 	// ADD THE SLICE OF FORMATTED RECORDS TO THE SCHEMA STRUCT FOR EASIER METHOD ACCESS LATER
-	schema.FormattedRecords = FormattedRecords
 	log.Println("Finished parsing all records.")
-	log.Printf("%v", schema.FormattedRecords)
+	log.Printf("%v", ParsedRecs)
 	log.Println("Generating Schema.")
-	schema.GenerateSchemaFields()
-	schema.EqualiseData()
+	schema.GenerateSchemaFields(ParsedRecs)
+	ParsedRecsWithNulls := schema.AddNulls(ParsedRecs)
+	log.Printf("%v", ParsedRecsWithNulls)
 	log.Printf("%#v", schema)
-	return *schema, nil
+	return *schema, ParsedRecsWithNulls, nil
 }
 func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}) {
+	sendOnChan := true
 	// FOR KEY VAL IN THE JSON BLOB
 	for k, v := range rec {
 		// IF KEY IS PART OF NESTED DIC, COMBINE THE KEYS
@@ -82,6 +79,8 @@ func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[st
 		// IF ITS ANOTHER DICT THEN RECURSIVLY REPEAT TO FLATTEN OUT STRUCTURE
 		case reflect.Map:
 			ParseRecord(v.(map[string]interface{}), k, formattedRec, fChan)
+			// SET TO FALSE TO AVOID DUPLICATING RECORD FOR EACH NESTED DIC
+			sendOnChan = false
 		// IF IT IS AN ARRAY THEN PARSE IT INTO THE LIST MAPPINGS SCHEMA
 		case reflect.Array:
 			// TODO ADD LIST MAPPINGS LOGIC HERE
@@ -94,5 +93,7 @@ func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[st
 		}
 	}
 	// SEND THE FORMATTED RECORD OVER THE CHANNEL TO BE APPENDED TO THE FORMATTED LIST
-	fChan <- formattedRec
+	if sendOnChan {
+		fChan <- formattedRec
+	}
 }

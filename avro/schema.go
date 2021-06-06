@@ -10,6 +10,8 @@ import (
 	"sync"
 )
 
+type JSONFormattedData []map[string]interface{}
+
 type FieldType []string
 
 type Field struct {
@@ -22,8 +24,6 @@ type Schema struct {
 	Name      string  `json:"name"`
 	Namespace string  `json:"namespace"`
 	Fields    []Field `json:"fields"`
-	// CHANGE JSON TAG TO - WHEN DONE TO PREVENT EXPORTING TO AVRO FILE
-	FormattedRecords []map[string]interface{} `json:"FormattedRecords"`
 }
 
 func NewSchema(name string, namespace string) *Schema {
@@ -57,8 +57,8 @@ func (s *Schema) AddField(FieldName, Type string) {
 	s.Fields = append(s.Fields, *nf)
 }
 
-func (s *Schema) GenerateSchemaFields() {
-	for _, rec := range s.FormattedRecords {
+func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{}) {
+	for _, rec := range FormattedRecords {
 		for k, v := range rec {
 			switch reflect.ValueOf(v).Kind() {
 			case reflect.String:
@@ -74,52 +74,54 @@ func (s *Schema) GenerateSchemaFields() {
 	}
 }
 
-// TODO SORT THIS OUT LATER
-func (s *Schema) EqualiseData() {
+func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[string]interface{} {
 	var (
-		rawWg   sync.WaitGroup
-		eqWg    sync.WaitGroup
-		mx      sync.Mutex
-		fChan   chan map[string]interface{}
-		eqSlice []map[string]interface{}
+		rawWg                 sync.WaitGroup
+		eqWg                  sync.WaitGroup
+		rChan                 = make(chan map[string]interface{}, len(FormattedRecords))
+		fChan                 = make(chan map[string]interface{}, len(FormattedRecords))
+		FormattedRecordsNulls []map[string]interface{}
 	)
-	for i := 0; i < 5; i++ {
-		eqWg.Add(1)
-		go func() {
-			defer eqWg.Done()
-			for rec := range fChan {
-				mx.Lock()
-				eqSlice = append(eqSlice, rec)
-				mx.Unlock()
-			}
-		}()
-	}
-	for _, rec := range s.FormattedRecords {
+	eqWg.Add(1)
+	go func() {
+		for rec := range fChan {
+
+		}
+	}()
+	for i := 0; i < 100; i++ {
 		rawWg.Add(1)
 		go func() {
 			defer rawWg.Done()
 			tempMap := make(map[string]interface{})
-			for _, f := range s.Fields {
-				for k, v := range rec {
-					// IF SCHEMA KEY IS IN RECORD THEN BREAK, ELSE KEEP LOOKING IN REC
-					if k == f.Name {
-						tempMap[k] = v
-						break
-					} else if k != f.Name {
-						tempMap[k] = v
-						continue
-					}
+			for rec := range rChan {
+				for _, f := range s.Fields {
+					for k, v := range rec {
+						// IF SCHEMA KEY IS IN RECORD THEN BREAK, ELSE KEEP LOOKING IN REC
+						if k == f.Name {
+							tempMap[k] = v
+							break
+						} else if k != f.Name {
+							tempMap[k] = v
+							continue
+						}
 
+					}
+					tempMap[f.Name] = nil
 				}
-				tempMap[f.Name] = nil
 			}
 			fChan <- tempMap
 		}()
 	}
+	for _, v := range FormattedRecords {
+		rChan <- v
+	}
+	log.Println("Send record down channel for nulling")
+	close(rChan)
 	rawWg.Wait()
 	close(fChan)
 	eqWg.Wait()
 	log.Println("Equalised all data.")
+	return FormattedRecordsNulls
 }
 
 func (s *Schema) ToJSON() ([]byte, error) {
