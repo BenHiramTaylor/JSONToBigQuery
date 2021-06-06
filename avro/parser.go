@@ -24,7 +24,7 @@ func bqsFromFile(fileName string) map[string]interface{} {
 	return bqs
 }
 
-func ParseRequest(request *data.JtBRequest) (Schema, map[string]interface{}, []map[string]interface{}, error) {
+func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, error) {
 	// GENERATE VARS
 	var (
 		parseWg    sync.WaitGroup
@@ -47,8 +47,6 @@ func ParseRequest(request *data.JtBRequest) (Schema, map[string]interface{}, []m
 	} else {
 		log.Printf("LOADED SCHEMA FROM GCS: %#v", schema)
 	}
-	// TRY TO LOAD BQS FILE
-	bqsFromFile(fmt.Sprintf("%v/%v.bqs", request.DatasetName, request.TableName))
 
 	log.Printf("Starting to parse %v records", len(request.Data))
 	// GOROUTINE FOR ADDING FORMATTED RECS TO STRING
@@ -87,8 +85,7 @@ func ParseRequest(request *data.JtBRequest) (Schema, map[string]interface{}, []m
 	ParsedRecsWithNulls := schema.AddNulls(ParsedRecs)
 	log.Printf("%v", ParsedRecsWithNulls)
 	log.Printf("%#v", schema)
-	// TODO CHANGE THE SECOND NIL TO BQSCHEMA
-	return *schema, nil, ParsedRecsWithNulls, nil
+	return *schema, ParsedRecsWithNulls, nil
 }
 func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}) {
 	sendOnChan := true
