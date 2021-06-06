@@ -13,7 +13,7 @@ import (
 	"google.golang.org/api/option"
 )
 
-func GetClient(credsMap map[string]interface{}) (*storage.Client, error) {
+func GetStorageClient(credsMap map[string]interface{}) (*storage.Client, error) {
 	credsJSON, err := json.Marshal(credsMap)
 	if err != nil {
 		return nil, err
