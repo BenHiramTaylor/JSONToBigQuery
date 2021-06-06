@@ -42,9 +42,8 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 
 	// CREATE LIST OF FILE NAMES
 	avscFile := fmt.Sprintf("%v.avsc", jtaData.TableName)
-	bqsFile := fmt.Sprintf("%v.bqs", jtaData.TableName)
 	jsonFile := fmt.Sprintf("%v.json", jtaData.TableName)
-	avroFiles := []string{avscFile, bqsFile, jsonFile}
+	avroFiles := []string{avscFile, jsonFile}
 
 	// CREATE A FOLDER FOR THE DATASET
 	err = os.Mkdir(jtaData.DatasetName, os.ModePerm)
@@ -53,7 +52,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// CREATE A STORAGE CLIENT TO TEST THE AUTH
-	storClient, err := gcp.GetClient(jtaData.AuthJSON)
+	storClient, err := gcp.GetStorageClient(jtaData.AuthJSON)
 	if err != nil {
 		log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
 
