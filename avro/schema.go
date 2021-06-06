@@ -84,6 +84,7 @@ func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[strin
 	)
 	eqWg.Add(1)
 	go func() {
+		defer eqWg.Done()
 		for rec := range fChan {
 			FormattedRecordsNulls = append(FormattedRecordsNulls, rec)
 		}
@@ -93,36 +94,33 @@ func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[strin
 		go func() {
 			defer rawWg.Done()
 			for rec := range rChan {
-				exists := false
 				for _, f := range s.Fields {
+					exists := false
 					for k := range rec {
 						// IF SCHEMA KEY IS IN RECORD THEN BREAK, ELSE KEEP LOOKING IN REC
 						if k == f.Name {
 							exists = true
 							break
-						} else if k != f.Name {
+						} else {
 							continue
 						}
 					}
 					if !exists {
 						rec[f.Name] = nil
 					}
-
 				}
 				fChan <- rec
 			}
-
 		}()
 	}
 	for _, v := range FormattedRecords {
 		rChan <- v
 	}
-	log.Println("Send record down channel for nulling")
 	close(rChan)
 	rawWg.Wait()
 	close(fChan)
 	eqWg.Wait()
-	log.Println("Equalised all data.")
+	log.Println("Added all nulls to data.")
 	return FormattedRecordsNulls
 }
 
