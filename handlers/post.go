@@ -49,13 +49,15 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	err = os.Mkdir(jtaData.DatasetName, os.ModePerm)
 	if err != nil {
 		log.Printf("ERROR CREATING FOLDER: %v", err.Error())
+		return
 	}
 
 	// CREATE A STORAGE CLIENT TO TEST THE AUTH
 	storClient, err := gcp.GetStorageClient(jtaData.AuthJSON)
 	if err != nil {
 		log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
-
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	if storClient == nil {
 		data.ErrorWithJSON(w, "Authentication JSON passed invalid.", http.StatusBadRequest)
@@ -67,6 +69,8 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		if e, ok := err.(*googleapi.Error); ok {
 			if e.Code != 409 {
 				log.Printf("ERROR CREATING BUCKET: %v", err.Error())
+				data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+				return
 			}
 		}
 	}
@@ -78,11 +82,17 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 			if err.Error() == "storage: object doesn't exist" {
 				continue
 			}
+			data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 			log.Printf("ERROR DOWNLOADING BLOB FROM GCP: %v", err.Error())
+			return
 		}
 	}
 	// BEGIN PARSING THE REQUEST USING THE AVRO MODULE, THIS FORMATS DATA AND CREATES SCHEMA
 	s, formattedData, err := avro.ParseRequest(jtaData)
+	if err != nil {
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// DUMP THE AVSC TO FILE
 	err = s.ToFile(jtaData.DatasetName)

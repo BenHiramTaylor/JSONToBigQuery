@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"reflect"
 	"sync"
 
@@ -28,11 +29,19 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 
 	// TRY TO LOAD AVSC FILE
 	avscData, err := ioutil.ReadFile(fmt.Sprintf("%v/%v.avsc", request.DatasetName, request.TableName))
-	err = json.Unmarshal(avscData, schema)
 	if err != nil {
-		log.Printf("ERROR READING AVSC FILE: %v", err.Error())
+		if _, ok := err.(*os.PathError); !ok {
+			log.Printf("ERROR READING AVSC FILE: %v", err.Error())
+			return Schema{}, nil, err
+		}
 	} else {
-		log.Printf("LOADED SCHEMA FROM GCS: %#v", schema)
+		err = json.Unmarshal(avscData, schema)
+		if err != nil {
+			log.Printf("ERROR READING AVSC BYTES TO STRUCT: %v", err.Error())
+			return Schema{}, nil, err
+		} else {
+			log.Printf("LOADED SCHEMA FROM GCS: %#v", schema)
+		}
 	}
 
 	log.Printf("Starting to parse %v records", len(request.Data))
