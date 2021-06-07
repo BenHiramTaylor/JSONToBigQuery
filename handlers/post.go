@@ -122,6 +122,32 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 
 	}
 
+	// CREATING BQ CLIENT
+	bqClient, err := gcp.GetBQClient(jtaData.AuthJSON, jtaData.ProjectID)
+	if err != nil {
+		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if bqClient == nil {
+		data.ErrorWithJSON(w, "Authentication JSON passed invalid.", http.StatusBadRequest)
+		return
+	}
+
+	// CREATING TABLE, IF IT EXISTS, ERROR IS SKIPPED WITHIN FUNC
+	err = gcp.CreateTable(bqClient, jtaData.DatasetName, jtaData.TableName)
+	if err != nil {
+		data.ErrorWithJSON(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// ADD ANY NEW SCHEMA USING SCHEMA FIELD NAMES
+	err = gcp.EnsureSchema(bqClient, jtaData.DatasetName, jtaData.TableName, s)
+	if err != nil {
+		data.ErrorWithJSON(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// THIS IS TEST LOGIC TO RETURN SAME ITEM
 	sJSON, err := s.ToJSON()
 	if err != nil {
