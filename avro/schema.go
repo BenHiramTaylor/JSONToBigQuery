@@ -12,11 +12,9 @@ import (
 
 type JSONFormattedData []map[string]interface{}
 
-type FieldType []string
-
 type Field struct {
-	Name      string    `json:"name"`
-	FieldType FieldType `json:"type"`
+	Name      string   `json:"name"`
+	FieldType []string `json:"type"`
 }
 
 type Schema struct {
