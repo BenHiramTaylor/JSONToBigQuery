@@ -81,15 +81,21 @@ func EnsureSchema(client *bigquery.Client, datasetID, tableID string, sch avro.S
 		return err
 	}
 	for _, af := range sch.Fields {
+		exists := false
 		for _, tf := range tableSchema {
 			if af.Name == tf.Name {
-				continue
+				exists = true
+				break
 			} else {
-				// TODO MAP THE FIELD HERE USING CONST MAP
-				err := updateTableAddColumn(client, datasetID, tableID, af.Name, bigquery.StringFieldType)
-				if err != nil {
-					return err
-				}
+				continue
+
+			}
+		}
+		if !exists {
+			// TODO MAP THE FIELD HERE USING CONST MAP
+			err := updateTableAddColumn(client, datasetID, tableID, af.Name, bigquery.StringFieldType)
+			if err != nil {
+				return err
 			}
 		}
 	}
