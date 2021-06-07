@@ -24,6 +24,15 @@ type Schema struct {
 	Fields    []Field `json:"fields"`
 }
 
+type ParsableSchema struct {
+	Type  string `json:"type"`
+	Items Schema `json:"items"`
+}
+
+func NewParsableSchema(Type string, items Schema) *ParsableSchema {
+	return &ParsableSchema{Type: Type, Items: items}
+}
+
 func NewSchema(name string, namespace string) *Schema {
 	return &Schema{Type: "record", Name: name, Namespace: namespace}
 }
@@ -116,6 +125,10 @@ func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[strin
 
 func (s *Schema) ToJSON() ([]byte, error) {
 	return json.Marshal(s)
+}
+
+func (p *ParsableSchema) ToJSON() ([]byte, error) {
+	return json.Marshal(p)
 }
 
 func (s *Schema) FromJSON(fileReader io.Reader) error {
