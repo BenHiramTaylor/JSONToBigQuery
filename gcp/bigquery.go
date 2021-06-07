@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"cloud.google.com/go/bigquery"
+	"github.com/BenHiramTaylor/JSONToBigQuery/avro"
 	"google.golang.org/api/option"
 )
 
@@ -42,7 +43,7 @@ func updateTableAddColumn(client *bigquery.Client, datasetID, tableID, fieldName
 	return nil
 }
 
-func GetTableSchema(client *bigquery.Client, datasetID, tableID string) ([]*bigquery.FieldSchema, error) {
+func getTableSchema(client *bigquery.Client, datasetID, tableID string) ([]*bigquery.FieldSchema, error) {
 	ctx := context.Background()
 	tableMeta, err := client.Dataset(datasetID).Table(tableID).Metadata(ctx)
 	if err != nil {
@@ -60,6 +61,28 @@ func CreateTable(client *bigquery.Client, datasetID, tableID string) error {
 	err = client.Dataset(datasetID).Table(tableID).Create(ctx, &bigquery.TableMetadata{Name: tableID})
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func EnsureSchema(client *bigquery.Client, datasetID, tableID string, sch avro.Schema) error {
+	tableSchema, err := getTableSchema(client, datasetID, tableID)
+	if err != nil {
+		log.Printf("ERROR GETTING TABLE SCHEMA: %v", err.Error())
+		return err
+	}
+	for _, af := range sch.Fields {
+		for _, tf := range tableSchema {
+			if af.Name == tf.Name {
+				continue
+			} else {
+				// TODO MAP THE FIELD HERE USING CONST MAP
+				err := updateTableAddColumn(client, datasetID, tableID, af.Name, bigquery.StringFieldType)
+				if err != nil {
+					return err
+				}
+			}
+		}
 	}
 	return nil
 }
