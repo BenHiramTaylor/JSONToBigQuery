@@ -106,3 +106,10 @@ func PrepareTable(client *bigquery.Client, datasetID, tableID string, sch avro.S
 	}
 	return nil
 }
+
+// func LoadAvroToTable(client *bigquery.Client,bucketName, datasetID, tableID, avroFile string) error{
+// 	ctx := context.Background()
+// 	gcsRef := bigquery.NewGCSReference(fmt.Sprintf("gs://%v/%v/%v",bucketName,datasetID,avroFile))
+// 	gcsRef.SourceFormat = bigquery.Avro
+// 	return nil
+// }
