@@ -23,7 +23,6 @@ func GetStorageClient(credsMap map[string]interface{}) (*storage.Client, error) 
 	if err != nil {
 		return nil, err
 	}
-	log.Println("Created Storage Client")
 	return client, nil
 }
 
