@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	bucketName = "jtb-source-structures"
+	bucketName    = "jtb-source-structures"
+	credsFilePath = ""
 )
 
 func JtBPost(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +54,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// CREATE A STORAGE CLIENT TO TEST THE AUTH
-	storClient, err := gcp.GetStorageClient(jtaData.AuthJSON)
+	storClient, err := gcp.GetStorageClient(credsFilePath)
 	if err != nil {
 		log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
@@ -123,7 +124,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// CREATING BQ CLIENT
-	bqClient, err := gcp.GetBQClient(jtaData.AuthJSON, jtaData.ProjectID)
+	bqClient, err := gcp.GetBQClient(credsFilePath, jtaData.ProjectID)
 	if err != nil {
 		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
@@ -165,4 +166,5 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("ERROR DELETING FOLDER: %v", jtaData.DatasetName)
 	}
+	log.Println("Completed request")
 }

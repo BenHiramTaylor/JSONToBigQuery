@@ -2,7 +2,6 @@ package gcp
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 
 	"cloud.google.com/go/bigquery"
@@ -22,13 +21,9 @@ var (
 	}
 )
 
-func GetBQClient(credsMap map[string]interface{}, projectID string) (*bigquery.Client, error) {
-	credsJSON, err := json.Marshal(credsMap)
-	if err != nil {
-		return nil, err
-	}
+func GetBQClient(credsPath string, projectID string) (*bigquery.Client, error) {
 	ctx := context.Background()
-	client, err := bigquery.NewClient(ctx, projectID, option.WithCredentialsJSON(credsJSON))
+	client, err := bigquery.NewClient(ctx, projectID, option.WithCredentialsFile(credsPath))
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +105,6 @@ func EnsureSchema(client *bigquery.Client, datasetID, tableID string, sch avro.S
 					afType = v
 				}
 			}
-			// TODO MAP THE FIELD HERE USING CONST MAP
 			err := updateTableAddColumn(client, datasetID, tableID, af.Name, bqSchemaMap[afType])
 			if err != nil {
 				return err

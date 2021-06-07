@@ -2,7 +2,6 @@ package gcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -13,13 +12,9 @@ import (
 	"google.golang.org/api/option"
 )
 
-func GetStorageClient(credsMap map[string]interface{}) (*storage.Client, error) {
-	credsJSON, err := json.Marshal(credsMap)
-	if err != nil {
-		return nil, err
-	}
+func GetStorageClient(credsFilePath string) (*storage.Client, error) {
 	ctx := context.Background()
-	client, err := storage.NewClient(ctx, option.WithCredentialsJSON(credsJSON))
+	client, err := storage.NewClient(ctx, option.WithCredentialsFile(credsFilePath))
 	if err != nil {
 		return nil, err
 	}
