@@ -135,15 +135,8 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// CREATING TABLE, IF IT EXISTS, ERROR IS SKIPPED WITHIN FUNC
-	err = gcp.CreateTable(bqClient, jtaData.DatasetName, jtaData.TableName)
-	if err != nil {
-		data.ErrorWithJSON(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// ADD ANY NEW SCHEMA USING SCHEMA FIELD NAMES
-	err = gcp.EnsureSchema(bqClient, jtaData.DatasetName, jtaData.TableName, s)
+	// CREATE TABLE AND ADD ANY NEW SCHEMA USING SCHEMA FIELD NAMES
+	err = gcp.PrepareTable(bqClient, jtaData.DatasetName, jtaData.TableName, s)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusBadRequest)
 		return
