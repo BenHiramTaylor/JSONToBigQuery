@@ -77,18 +77,10 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[string]interface{} {
 	var (
 		rawWg                 sync.WaitGroup
-		eqWg                  sync.WaitGroup
+		mx                    sync.Mutex
 		rChan                 = make(chan map[string]interface{}, len(FormattedRecords))
-		fChan                 = make(chan map[string]interface{}, len(FormattedRecords))
 		FormattedRecordsNulls []map[string]interface{}
 	)
-	eqWg.Add(1)
-	go func() {
-		defer eqWg.Done()
-		for rec := range fChan {
-			FormattedRecordsNulls = append(FormattedRecordsNulls, rec)
-		}
-	}()
 	for i := 0; i < 100; i++ {
 		rawWg.Add(1)
 		go func() {
@@ -109,7 +101,9 @@ func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[strin
 						rec[f.Name] = nil
 					}
 				}
-				fChan <- rec
+				mx.Lock()
+				FormattedRecordsNulls = append(FormattedRecordsNulls, rec)
+				mx.Unlock()
 			}
 		}()
 	}
@@ -118,8 +112,6 @@ func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[strin
 	}
 	close(rChan)
 	rawWg.Wait()
-	close(fChan)
-	eqWg.Wait()
 	log.Println("Added all nulls to data.")
 	return FormattedRecordsNulls
 }
