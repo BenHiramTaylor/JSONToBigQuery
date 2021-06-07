@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/BenHiramTaylor/JSONToBigQuery/avro"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
@@ -56,11 +57,19 @@ func CreateTable(client *bigquery.Client, datasetID, tableID string) error {
 	ctx := context.Background()
 	err := client.Dataset(datasetID).Create(ctx, &bigquery.DatasetMetadata{Name: datasetID})
 	if err != nil {
-		return err
+		if e, ok := err.(*googleapi.Error); ok {
+			if e.Code != 409 {
+				return err
+			}
+		}
 	}
 	err = client.Dataset(datasetID).Table(tableID).Create(ctx, &bigquery.TableMetadata{Name: tableID})
 	if err != nil {
-		return err
+		if e, ok := err.(*googleapi.Error); ok {
+			if e.Code != 409 {
+				return err
+			}
+		}
 	}
 	return nil
 }
