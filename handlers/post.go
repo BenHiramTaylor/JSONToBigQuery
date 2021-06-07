@@ -17,7 +17,7 @@ import (
 
 var (
 	bucketName    = "jtb-source-structures"
-	credsFilePath = ""
+	credsFilePath = os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 )
 
 func JtBPost(w http.ResponseWriter, r *http.Request) {
