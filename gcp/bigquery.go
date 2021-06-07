@@ -13,7 +13,12 @@ import (
 
 var (
 	bqSchemaMap = map[string]bigquery.FieldType{
-		"string": bigquery.StringFieldType,
+		"string":  bigquery.StringFieldType,
+		"int":     bigquery.IntegerFieldType,
+		"long":    bigquery.IntegerFieldType,
+		"float":   bigquery.FloatFieldType,
+		"double":  bigquery.FloatFieldType,
+		"boolean": bigquery.BooleanFieldType,
 	}
 )
 
