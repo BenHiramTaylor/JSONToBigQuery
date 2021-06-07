@@ -82,7 +82,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// BEGIN PARSING THE REQUEST USING THE AVRO MODULE, THIS FORMATS DATA AND CREATES SCHEMA
-	s, _, formattedData, err := avro.ParseRequest(jtaData)
+	s, formattedData, err := avro.ParseRequest(jtaData)
 
 	// DUMP THE AVSC TO FILE
 	err = s.ToFile(jtaData.DatasetName)
