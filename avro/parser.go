@@ -68,7 +68,7 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 	for _, v := range request.Data {
 		rawChan <- v
 	}
-	// CLOSE CHANNEL OF RAW, WAIT FOR FORMATTING TO FINSIH, THEN CLOSE FORMATTING CHANNEL AND WAIT
+	// CLOSE CHANNEL OF RAW, WAIT FOR FORMATTING TO FINISH, THEN CLOSE FORMATTING CHANNEL AND WAIT
 	// FOR THAT GO ROUTINE TO COMPLETE ADDING TO LIST
 	close(rawChan)
 	parseWg.Wait()
@@ -101,10 +101,6 @@ func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[st
 		// IF IT IS AN ARRAY THEN PARSE IT INTO THE LIST MAPPINGS SCHEMA
 		case reflect.Array:
 			// TODO ADD LIST MAPPINGS LOGIC HERE
-		// IF IT IS STRING THEN ADD IT TO THE EMPTY OVERALL RECORD AND SCHEMA AS STRING
-		case reflect.String:
-			formattedRec[k] = v
-		// ELSE ADD IT AS TYPE INT
 		default:
 			formattedRec[k] = v
 		}
