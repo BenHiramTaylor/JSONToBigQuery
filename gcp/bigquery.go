@@ -31,16 +31,39 @@ func GetBQClient(credsPath string, projectID string) (*bigquery.Client, error) {
 	return client, nil
 }
 
-func updateTableAddColumn(client *bigquery.Client, datasetID, tableID, fieldName string, fieldType bigquery.FieldType) error {
+func updateTableSchema(client *bigquery.Client, datasetID, tableID string, sch avro.Schema) error {
+	var newSchema = bigquery.Schema{}
 	ctx := context.Background()
 	tableRef := client.Dataset(datasetID).Table(tableID)
 	meta, err := tableRef.Metadata(ctx)
 	if err != nil {
 		return err
 	}
-	newSchema := append(meta.Schema,
-		&bigquery.FieldSchema{Name: fieldName, Type: fieldType},
-	)
+	for _, af := range sch.Fields {
+		exists := false
+		afType := ""
+		for _, tf := range meta.Schema {
+			if af.Name == tf.Name {
+				exists = true
+				break
+			} else {
+				continue
+			}
+		}
+		if !exists {
+			for _, v := range af.FieldType {
+				if v == "null" {
+					continue
+				} else {
+					afType = v
+				}
+			}
+			newSchema = append(meta.Schema,
+				&bigquery.FieldSchema{Name: af.Name, Type: bqSchemaMap[afType]},
+			)
+		}
+	}
+
 	update := bigquery.TableMetadataToUpdate{
 		Schema: newSchema,
 	}
@@ -50,16 +73,7 @@ func updateTableAddColumn(client *bigquery.Client, datasetID, tableID, fieldName
 	return nil
 }
 
-func getTableSchema(client *bigquery.Client, datasetID, tableID string) ([]*bigquery.FieldSchema, error) {
-	ctx := context.Background()
-	tableMeta, err := client.Dataset(datasetID).Table(tableID).Metadata(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return tableMeta.Schema, nil
-}
-
-func CreateTable(client *bigquery.Client, datasetID, tableID string) error {
+func createTable(client *bigquery.Client, datasetID, tableID string) error {
 	ctx := context.Background()
 	err := client.Dataset(datasetID).Create(ctx, &bigquery.DatasetMetadata{Name: datasetID})
 	if err != nil {
@@ -80,36 +94,14 @@ func CreateTable(client *bigquery.Client, datasetID, tableID string) error {
 	return nil
 }
 
-func EnsureSchema(client *bigquery.Client, datasetID, tableID string, sch avro.Schema) error {
-	tableSchema, err := getTableSchema(client, datasetID, tableID)
+func PrepareTable(client *bigquery.Client, datasetID, tableID string, sch avro.Schema) error {
+	err := createTable(client, datasetID, tableID)
 	if err != nil {
-		log.Printf("ERROR GETTING TABLE SCHEMA: %v", err.Error())
 		return err
 	}
-	for _, af := range sch.Fields {
-		exists := false
-		afType := ""
-		for _, tf := range tableSchema {
-			if af.Name == tf.Name {
-				exists = true
-				break
-			} else {
-				continue
-			}
-		}
-		if !exists {
-			for _, v := range af.FieldType {
-				if v == "null" {
-					continue
-				} else {
-					afType = v
-				}
-			}
-			err := updateTableAddColumn(client, datasetID, tableID, af.Name, bqSchemaMap[afType])
-			if err != nil {
-				return err
-			}
-		}
+	err = updateTableSchema(client, datasetID, tableID, sch)
+	if err != nil {
+		return err
 	}
 	return nil
 }
