@@ -74,6 +74,8 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 				s.AddField(k, "long")
 			case reflect.Bool:
 				s.AddField(k, "boolean")
+			case reflect.Float32, reflect.Float64:
+				s.AddField(k, "float")
 			default:
 				s.AddField(k, "int")
 			}
