@@ -11,19 +11,6 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 )
 
-func bqsFromFile(fileName string) map[string]interface{} {
-	bqs := make(map[string]interface{})
-	fData, err := ioutil.ReadFile(fileName)
-	if err != nil {
-		log.Printf("ERROR LOADING BQS FROM FILE: %v", err.Error())
-	}
-	err = json.Unmarshal(fData, &bqs)
-	if err != nil {
-		log.Printf("ERROR LOADING BQS FILE DATA INTO BQS TYPE")
-	}
-	return bqs
-}
-
 func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, error) {
 	// GENERATE VARS
 	var (
