@@ -12,6 +12,7 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 	"github.com/BenHiramTaylor/JSONToBigQuery/gcp"
 	"github.com/go-playground/validator"
+	Eavro "github.com/hamba/avro"
 	"google.golang.org/api/googleapi"
 )
 
@@ -44,7 +45,8 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	// CREATE LIST OF FILE NAMES
 	avscFile := fmt.Sprintf("%v.avsc", jtaData.TableName)
 	jsonFile := fmt.Sprintf("%v.json", jtaData.TableName)
-	avroFiles := []string{avscFile, jsonFile}
+	avroFile := fmt.Sprintf("%v.avro", jtaData.TableName)
+	avroFiles := []string{avscFile, jsonFile, avroFile}
 
 	// CREATE A FOLDER FOR THE DATASET
 	err = os.Mkdir(jtaData.DatasetName, os.ModePerm)
@@ -101,11 +103,39 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		log.Printf("ERROR DUMPING SCHEMA TO AVSC FILE: %v", err.Error())
 	}
 
-	// DUMP THE FORMATTED RECORDS TO JSON
+	// TURN AVRO SCHEMA INTO PARSABLE AVRO SCHEMA
+	pSchema := avro.NewParsableSchema("array", s)
+	// PARSE OUR AVSC DATA THROUGH THE ENCODER
+	schemaBytes, err := pSchema.ToJSON()
+	if err != nil {
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	aSchema, err := Eavro.Parse(string(schemaBytes))
+	if err != nil {
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// DUMP THE FORMATTED RECORDS TO AVRO
+	Eavro.Register(jtaData.TableName, formattedData)
+	avroData, err := Eavro.Marshal(aSchema, formattedData)
+	if err != nil {
+		log.Printf("ERROR MARSHALLING AVRO DATA: %v", err.Error())
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", jtaData.DatasetName, avroFile), avroData, 0644)
+	if err != nil {
+		log.Printf("ERROR DUMPING FORMATTED AVRO TO FILE: %v", err.Error())
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// DUMP THE RAW JSON TOO
 	jsonData, err := json.Marshal(formattedData)
 	if err != nil {
-		log.Printf("ERROR MARSHALLING JSON DATA: %v", err.Error())
-
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", jtaData.DatasetName, jsonFile), jsonData, 0644)
 	if err != nil {
@@ -142,7 +172,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// THIS IS TEST LOGIC TO RETURN SAME ITEM
+	// THIS IS TEST LOGIC TO RETURN SCHEMA
 	sJSON, err := s.ToJSON()
 	if err != nil {
 		log.Fatalln(err.Error())
