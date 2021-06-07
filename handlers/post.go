@@ -104,13 +104,16 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	jsonData, err := json.Marshal(formattedData)
 	if err != nil {
 		log.Printf("ERROR MARSHALLING JSON DATA: %v", err.Error())
+
 	}
 	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", jtaData.DatasetName, jsonFile), jsonData, 0644)
 	if err != nil {
 		log.Printf("ERROR DUMPING FORMATTED JSON TO FILE: %v", err.Error())
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	// TESTING UPLOADING TO BUCKET
+	// UPLOAD FILES TO BUCKET
 	for _, f := range avroFiles {
 		err = gcp.UploadBlobToStorage(storClient, bucketName, jtaData.DatasetName, f)
 		if err != nil {
@@ -130,7 +133,6 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalln("COULD NOT WRITE RESPONSE")
 	}
-	// TODO PARSE LOGIC HERE
 
 	// DELETE THE FOLDER WHEN DONE
 	err = os.Remove(jtaData.DatasetName)
