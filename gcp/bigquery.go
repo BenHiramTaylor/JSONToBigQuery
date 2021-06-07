@@ -11,6 +11,12 @@ import (
 	"google.golang.org/api/option"
 )
 
+var (
+	bqSchemaMap = map[string]bigquery.FieldType{
+		"string": bigquery.StringFieldType,
+	}
+)
+
 func GetBQClient(credsMap map[string]interface{}, projectID string) (*bigquery.Client, error) {
 	credsJSON, err := json.Marshal(credsMap)
 	if err != nil {
@@ -82,18 +88,25 @@ func EnsureSchema(client *bigquery.Client, datasetID, tableID string, sch avro.S
 	}
 	for _, af := range sch.Fields {
 		exists := false
+		afType := ""
 		for _, tf := range tableSchema {
 			if af.Name == tf.Name {
 				exists = true
 				break
 			} else {
 				continue
-
 			}
 		}
 		if !exists {
+			for _, v := range af.FieldType {
+				if v == "null" {
+					continue
+				} else {
+					afType = v
+				}
+			}
 			// TODO MAP THE FIELD HERE USING CONST MAP
-			err := updateTableAddColumn(client, datasetID, tableID, af.Name, bigquery.StringFieldType)
+			err := updateTableAddColumn(client, datasetID, tableID, af.Name, bqSchemaMap[afType])
 			if err != nil {
 				return err
 			}
