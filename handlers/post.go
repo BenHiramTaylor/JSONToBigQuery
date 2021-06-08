@@ -13,6 +13,7 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/gcp"
 	"github.com/go-playground/validator"
 	Eavro "github.com/hamba/avro"
+	"github.com/hamba/avro/ocf"
 	"google.golang.org/api/googleapi"
 )
 
@@ -80,6 +81,10 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 
 	// DOWNLOAD OR CREATE FILES NEEDED FROM GCS
 	for _, v := range avroFiles {
+		// WE NEED TO CREATE A NEW AVRO FOR THE LOAD NOT RELOAD SAME DATA
+		if v == avroFile {
+			continue
+		}
 		err = gcp.DownloadBlobFromStorage(storClient, bucketName, jtaData.DatasetName, v)
 		if err != nil {
 			if err.Error() == "storage: object doesn't exist" {
@@ -106,11 +111,6 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	aSchema, err := Eavro.Parse(string(schemaBytes))
-	if err != nil {
-		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	// DUMP THE AVSC TO FILE
 	err = pSchema.ToFile(jtaData.DatasetName)
 	if err != nil {
@@ -118,15 +118,30 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 	// DUMP THE FORMATTED RECORDS TO AVRO
 	Eavro.Register(jtaData.TableName, formattedData)
-	avroData, err := Eavro.Marshal(aSchema, formattedData)
+	f, err := os.Create(fmt.Sprintf("%v/%v", jtaData.DatasetName, avroFile))
 	if err != nil {
-		log.Printf("ERROR MARSHALLING AVRO DATA: %v", err.Error())
+		log.Printf("ERROR OPENING AVRO FILE: %v", err.Error())
+		return
+	}
+	defer f.Close()
+	enc, err := ocf.NewEncoder(string(schemaBytes), f)
+	if err != nil {
+		log.Printf("ERROR CREATING ENCODER: %v", err.Error())
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", jtaData.DatasetName, avroFile), avroData, 0644)
+	err = enc.Encode(formattedData)
 	if err != nil {
-		log.Printf("ERROR DUMPING FORMATTED AVRO TO FILE: %v", err.Error())
+		log.Printf("ERROR ENCODING JSON DATA: %v", err.Error())
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := enc.Flush(); err != nil {
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := f.Sync(); err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
