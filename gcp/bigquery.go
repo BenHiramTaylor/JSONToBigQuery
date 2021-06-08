@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"cloud.google.com/go/bigquery"
@@ -12,12 +13,13 @@ import (
 
 var (
 	bqSchemaMap = map[string]bigquery.FieldType{
-		"string":  bigquery.StringFieldType,
-		"int":     bigquery.IntegerFieldType,
-		"long":    bigquery.IntegerFieldType,
-		"float":   bigquery.FloatFieldType,
-		"double":  bigquery.FloatFieldType,
-		"boolean": bigquery.BooleanFieldType,
+		"string":                bigquery.StringFieldType,
+		"int":                   bigquery.IntegerFieldType,
+		"long":                  bigquery.IntegerFieldType,
+		"float":                 bigquery.FloatFieldType,
+		"double":                bigquery.FloatFieldType,
+		"boolean":               bigquery.BooleanFieldType,
+		"long.timestamp-micros": bigquery.TimestampFieldType,
 	}
 )
 
@@ -107,9 +109,22 @@ func PrepareTable(client *bigquery.Client, datasetID, tableID string, sch avro.S
 	return nil
 }
 
-// func LoadAvroToTable(client *bigquery.Client,bucketName, datasetID, tableID, avroFile string) error{
-// 	ctx := context.Background()
-// 	gcsRef := bigquery.NewGCSReference(fmt.Sprintf("gs://%v/%v/%v",bucketName,datasetID,avroFile))
-// 	gcsRef.SourceFormat = bigquery.Avro
-// 	return nil
-// }
+func LoadAvroToTable(client *bigquery.Client, bucketName, datasetID, tableID, avroFile string) error {
+	ctx := context.Background()
+	gcsRef := bigquery.NewGCSReference(fmt.Sprintf("gs://%v/%v/%v", bucketName, datasetID, avroFile))
+	gcsRef.SourceFormat = bigquery.Avro
+	loader := client.Dataset(datasetID).Table(tableID).LoaderFrom(gcsRef)
+	loader.WriteDisposition = bigquery.WriteAppend
+	job, err := loader.Run(ctx)
+	if err != nil {
+		return err
+	}
+	status, err := job.Wait(ctx)
+	if err != nil {
+		return err
+	}
+	if status.Err() != nil {
+		return fmt.Errorf("job completed with error: %v", status.Err())
+	}
+	return nil
+}
