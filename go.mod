@@ -11,6 +11,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/hamba/avro v1.5.4
 	github.com/leodido/go-urn v1.2.1 // indirect
+	github.com/linkedin/goavro/v2 v2.10.0 // indirect
 	github.com/stretchr/testify v1.7.0 // indirect
 	google.golang.org/api v0.47.0
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
