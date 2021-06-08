@@ -45,7 +45,7 @@ func updateTableSchema(client *bigquery.Client, datasetID, tableID string, sch a
 	for _, af := range sch.Fields {
 		exists := false
 		afType := ""
-		for _, tf := range meta.Schema {
+		for _, tf := range newSchema {
 			if af.Name == tf.Name {
 				exists = true
 				break
