@@ -41,7 +41,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		data.ErrorWithJSON(w, errSlice, http.StatusBadRequest)
 		return
 	}
-	log.Printf("%#v", jtaData)
+	log.Printf("GOT REQUEST: %#v", jtaData)
 
 	// CREATE LIST OF FILE NAMES
 	avscFile := fmt.Sprintf("%v.avsc", jtaData.TableName)
@@ -193,13 +193,14 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// THIS IS TEST LOGIC TO RETURN SCHEMA
-	sJSON, err := s.ToJSON()
+	resp := data.NewResponse("success", fmt.Sprintf("Successfully Inserted %v number of rows into %v.%v.", len(formattedData), jtaData.DatasetName, jtaData.TableName))
+	respJSON, err := resp.ToJSON()
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write(sJSON)
+	_, err = w.Write(respJSON)
 	if err != nil {
 		log.Fatalln("COULD NOT WRITE RESPONSE")
 	}
