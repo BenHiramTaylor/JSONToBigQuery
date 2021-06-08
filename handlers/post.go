@@ -193,7 +193,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// THIS IS TEST LOGIC TO RETURN SCHEMA
-	resp := data.NewResponse("success", fmt.Sprintf("Successfully Inserted %v number of rows into %v.%v.", len(formattedData), jtaData.DatasetName, jtaData.TableName))
+	resp := data.NewResponse("success", fmt.Sprintf("Successfully Inserted %v number of rows into %v.%v.%v.", len(formattedData), jtaData.ProjectID, jtaData.DatasetName, jtaData.TableName))
 	respJSON, err := resp.ToJSON()
 	if err != nil {
 		log.Fatalln(err.Error())
