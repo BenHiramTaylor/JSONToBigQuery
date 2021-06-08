@@ -97,12 +97,6 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// DUMP THE AVSC TO FILE
-	err = s.ToFile(jtaData.DatasetName)
-	if err != nil {
-		log.Printf("ERROR DUMPING SCHEMA TO AVSC FILE: %v", err.Error())
-	}
-
 	// TURN AVRO SCHEMA INTO PARSABLE AVRO SCHEMA
 	pSchema := avro.NewParsableSchema("array", s)
 	// PARSE OUR AVSC DATA THROUGH THE ENCODER
@@ -111,10 +105,16 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	aSchema, err := Eavro.Parse(string(schemaBytes))
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	// DUMP THE AVSC TO FILE
+	err = pSchema.ToFile(jtaData.DatasetName)
+	if err != nil {
+		log.Printf("ERROR DUMPING SCHEMA TO AVSC FILE: %v", err.Error())
 	}
 	// DUMP THE FORMATTED RECORDS TO AVRO
 	Eavro.Register(jtaData.TableName, formattedData)
@@ -169,6 +169,12 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	err = gcp.PrepareTable(bqClient, jtaData.DatasetName, jtaData.TableName, s)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// LOAD THE DATA FROM GCS
+	err = gcp.LoadAvroToTable(bqClient, bucketName, jtaData.DatasetName, jtaData.TableName, avroFile)
+	if err != nil {
+		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
