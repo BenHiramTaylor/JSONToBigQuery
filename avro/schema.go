@@ -9,6 +9,7 @@ import (
 	"math"
 	"reflect"
 	"sync"
+	"time"
 )
 
 type JSONFormattedData []map[string]interface{}
@@ -74,6 +75,12 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 		for k, v := range rec {
 			switch reflect.ValueOf(v).Kind() {
 			case reflect.String:
+				newV, _ := v.(string)
+				timeVal, err := time.Parse(time.RFC3339, newV)
+				if err == nil {
+					rec[k] = timeVal.UnixNano()
+					s.AddField(k, "long.timestamp-micros")
+				}
 				s.AddField(k, "string")
 			case reflect.Int64:
 				s.AddField(k, "long")
@@ -94,8 +101,6 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 					rec[k] = newV
 					s.AddField(k, "int")
 				}
-			case reflect.Struct:
-				s.AddField(k, "long.timestamp-micros")
 			default:
 				s.AddField(k, "string")
 			}
