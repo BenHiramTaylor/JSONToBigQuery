@@ -81,7 +81,7 @@ func ParseRequest(request *data.JtBRequest) (ParsableSchema, []map[string]interf
 	schema.GenerateSchemaFields(ParsedRecs)
 	ParsedRecsWithNulls := schema.AddNulls(ParsedRecs)
 	log.Printf("%v", ParsedRecsWithNulls)
-	log.Printf("%#v", schema)
+	log.Printf("%#v", pSchema)
 	return *pSchema, ParsedRecsWithNulls, nil
 }
 func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}) {
