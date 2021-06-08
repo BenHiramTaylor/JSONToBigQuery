@@ -75,6 +75,7 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 		for k, v := range rec {
 			switch reflect.ValueOf(v).Kind() {
 			case reflect.String:
+				// ATTEMPT TO CONVERT STRINGS TO time.Time objects, IF IT FAILS THEN ITS JUST STRING, ELSE MAKE IT A TIMESTAMP
 				newV, _ := v.(string)
 				timeVal, err := time.Parse(time.RFC3339, newV)
 				if err == nil {
