@@ -41,7 +41,7 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 			log.Printf("ERROR READING AVSC BYTES TO STRUCT: %v", err.Error())
 			return Schema{}, nil, err
 		} else {
-			log.Printf("LOADED SCHEMA FROM GCS: %#v", schema)
+			log.Printf("LOADED SCHEMA FROM GCS: %#v", pSchema)
 		}
 	}
 
