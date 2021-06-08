@@ -74,15 +74,6 @@ func (r *RowSchema) GenerateSchemaFields(FormattedRecords []map[string]interface
 	for _, rec := range FormattedRecords {
 		for k, v := range rec {
 			switch reflect.ValueOf(v).Kind() {
-			case reflect.String:
-				// ATTEMPT TO CONVERT STRINGS TO time.Time objects, IF IT FAILS THEN ITS JUST STRING, ELSE MAKE IT A TIMESTAMP
-				newV, _ := v.(string)
-				timeVal, err := time.Parse(time.RFC3339, newV)
-				if err == nil {
-					rec[k] = timeVal.UnixNano()
-					r.AddField(k, "long.timestamp-micros")
-				}
-				r.AddField(k, "string")
 			case reflect.Int64:
 				r.AddField(k, "long")
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
@@ -102,7 +93,14 @@ func (r *RowSchema) GenerateSchemaFields(FormattedRecords []map[string]interface
 					rec[k] = newV
 					r.AddField(k, "int")
 				}
-			default:
+			case reflect.String:
+				// ATTEMPT TO CONVERT STRINGS TO time.Time objects, IF IT FAILS THEN ITS JUST STRING, ELSE MAKE IT A TIMESTAMP
+				newV, _ := v.(string)
+				timeVal, err := time.Parse(time.RFC3339, newV)
+				if err == nil {
+					rec[k] = timeVal.UnixNano()
+					r.AddField(k, "long.timestamp-micros")
+				}
 				r.AddField(k, "string")
 			}
 		}
