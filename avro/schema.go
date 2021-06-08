@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"reflect"
 	"sync"
 )
@@ -64,6 +65,10 @@ func (s *Schema) AddField(FieldName, Type string) {
 	s.Fields = append(s.Fields, *nf)
 }
 
+func isFloatInt(floatValue float64) bool {
+	return math.Mod(floatValue, 1.0) == 0
+}
+
 func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{}) {
 	for _, rec := range FormattedRecords {
 		for k, v := range rec {
@@ -79,11 +84,20 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 			case reflect.Float32:
 				s.AddField(k, "float")
 			case reflect.Float64:
-				s.AddField(k, "double")
+				// CHECK IF FLOAT IS ACTUALLY AN INT BECAUSE JSON UNMARSHALLS ALL NUMBERS AS FLOAT64
+				// IF IT IS, EDIT THE VALUE SO IT IS AN INT AND THEN USE INT SCHEMA
+				isInt := isFloatInt(v.(float64))
+				if !isInt {
+					s.AddField(k, "double")
+				} else {
+					newV, _ := v.(int)
+					rec[k] = newV
+					s.AddField(k, "int")
+				}
 			case reflect.Struct:
 				s.AddField(k, "long.timestamp-micros")
 			default:
-				s.AddField(k, "int")
+				s.AddField(k, "string")
 			}
 		}
 	}
