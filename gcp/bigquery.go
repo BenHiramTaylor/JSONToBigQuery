@@ -97,6 +97,16 @@ func createTable(client *bigquery.Client, datasetID, tableID string) error {
 	return nil
 }
 
+func getTableSchema(client *bigquery.Client, datasetID, tableID string) (bigquery.Schema, error) {
+	ctx := context.Background()
+	tableRef := client.Dataset(datasetID).Table(tableID)
+	meta, err := tableRef.Metadata(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return meta.Schema, nil
+}
+
 func PrepareTable(client *bigquery.Client, datasetID, tableID string, sch avro.Schema) error {
 	err := createTable(client, datasetID, tableID)
 	if err != nil {
@@ -110,9 +120,14 @@ func PrepareTable(client *bigquery.Client, datasetID, tableID string, sch avro.S
 }
 
 func LoadAvroToTable(client *bigquery.Client, bucketName, datasetID, tableID, avroFile string) error {
+	tableSchema, err := getTableSchema(client, datasetID, tableID)
+	if err != nil {
+		return err
+	}
 	ctx := context.Background()
 	gcsRef := bigquery.NewGCSReference(fmt.Sprintf("gs://%v/%v/%v", bucketName, datasetID, avroFile))
 	gcsRef.SourceFormat = bigquery.Avro
+	gcsRef.Schema = tableSchema
 	loader := client.Dataset(datasetID).Table(tableID).LoaderFrom(gcsRef)
 	loader.WriteDisposition = bigquery.WriteAppend
 	job, err := loader.Run(ctx)
