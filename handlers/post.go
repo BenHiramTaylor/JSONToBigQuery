@@ -102,17 +102,15 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TURN AVRO SCHEMA INTO PARSABLE AVRO SCHEMA
-	pSchema := avro.NewParsableSchema("array", s)
 	// PARSE OUR AVSC DATA THROUGH THE ENCODER
-	schemaBytes, err := pSchema.ToJSON()
+	schemaBytes, err := s.ToJSON()
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// DUMP THE AVSC TO FILE
-	err = pSchema.ToFile(jtaData.DatasetName)
+	err = s.ToFile(jtaData.DatasetName)
 	if err != nil {
 		log.Printf("ERROR DUMPING SCHEMA TO AVSC FILE: %v", err.Error())
 	}

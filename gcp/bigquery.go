@@ -33,7 +33,7 @@ func GetBQClient(credsPath string, projectID string) (*bigquery.Client, error) {
 	return client, nil
 }
 
-func updateTableSchema(client *bigquery.Client, datasetID, tableID string, sch avro.Schema) error {
+func updateTableSchema(client *bigquery.Client, datasetID, tableID string, sch avro.ParsableSchema) error {
 	var newSchema = bigquery.Schema{}
 	ctx := context.Background()
 	tableRef := client.Dataset(datasetID).Table(tableID)
@@ -42,7 +42,7 @@ func updateTableSchema(client *bigquery.Client, datasetID, tableID string, sch a
 		return err
 	}
 	newSchema = append(meta.Schema)
-	for _, af := range sch.Fields {
+	for _, af := range sch.Items.Fields {
 		exists := false
 		afType := ""
 		for _, tf := range newSchema {
@@ -97,7 +97,7 @@ func createTable(client *bigquery.Client, datasetID, tableID string) error {
 	return nil
 }
 
-func PrepareTable(client *bigquery.Client, datasetID, tableID string, sch avro.Schema) error {
+func PrepareTable(client *bigquery.Client, datasetID, tableID string, sch avro.ParsableSchema) error {
 	err := createTable(client, datasetID, tableID)
 	if err != nil {
 		return err
