@@ -70,12 +70,18 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 			switch reflect.ValueOf(v).Kind() {
 			case reflect.String:
 				s.AddField(k, "string")
-			case reflect.Int64, reflect.Uint64:
+			case reflect.Int64:
 				s.AddField(k, "long")
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+				s.AddField(k, "int")
 			case reflect.Bool:
 				s.AddField(k, "boolean")
-			case reflect.Float32, reflect.Float64:
+			case reflect.Float32:
 				s.AddField(k, "float")
+			case reflect.Float64:
+				s.AddField(k, "double")
+			case reflect.Struct:
+				s.AddField(k, "long.timestamp-micros")
 			default:
 				s.AddField(k, "int")
 			}
@@ -143,6 +149,17 @@ func (s *Schema) ToFile(dataset string) error {
 		return err
 	}
 	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", dataset, s.Namespace), JSONb, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (p *ParsableSchema) ToFile(dataset string) error {
+	JSONb, err := p.ToJSON()
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", dataset, p.Items.Namespace), JSONb, 0644)
 	if err != nil {
 		return err
 	}
