@@ -19,24 +19,24 @@ type Field struct {
 	FieldType []string `json:"type"`
 }
 
-type Schema struct {
+type RowSchema struct {
 	Type      string  `json:"type"`
 	Name      string  `json:"name"`
 	Namespace string  `json:"namespace"`
 	Fields    []Field `json:"fields"`
 }
 
-type ParsableSchema struct {
-	Type  string `json:"type"`
-	Items Schema `json:"items"`
+type Schema struct {
+	Type  string    `json:"type"`
+	Items RowSchema `json:"items"`
 }
 
-func NewParsableSchema(Type string, items Schema) *ParsableSchema {
-	return &ParsableSchema{Type: Type, Items: items}
+func NewParsableSchema(Type string, items RowSchema) *Schema {
+	return &Schema{Type: Type, Items: items}
 }
 
-func NewSchema(name string, namespace string) *Schema {
-	return &Schema{Type: "record", Name: name, Namespace: namespace}
+func NewSchema(name string, namespace string) *RowSchema {
+	return &RowSchema{Type: "record", Name: name, Namespace: namespace}
 }
 
 func NewField(name string, fieldType string) *Field {
@@ -44,15 +44,15 @@ func NewField(name string, fieldType string) *Field {
 	return &Field{Name: name, FieldType: arrFieldType}
 }
 
-func (s *Schema) AddField(FieldName, Type string) {
-	for i, f := range s.Fields {
+func (r *RowSchema) AddField(FieldName, Type string) {
+	for i, f := range r.Fields {
 		if f.Name == FieldName {
 			for _, fv := range f.FieldType {
 				if fv == "null" {
 					continue
 				}
 				if fv != Type {
-					s.Fields[i] = *NewField(FieldName, "string")
+					r.Fields[i] = *NewField(FieldName, "string")
 					return
 				} else {
 					return
@@ -62,15 +62,15 @@ func (s *Schema) AddField(FieldName, Type string) {
 	}
 
 	nf := NewField(FieldName, Type)
-	log.Printf("New Field Added to %v : %#v", s.Namespace, nf)
-	s.Fields = append(s.Fields, *nf)
+	log.Printf("New Field Added to %v : %#v", r.Namespace, nf)
+	r.Fields = append(r.Fields, *nf)
 }
 
 func isFloatInt(floatValue float64) bool {
 	return math.Mod(floatValue, 1.0) == 0
 }
 
-func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{}) {
+func (r *RowSchema) GenerateSchemaFields(FormattedRecords []map[string]interface{}) {
 	for _, rec := range FormattedRecords {
 		for k, v := range rec {
 			switch reflect.ValueOf(v).Kind() {
@@ -80,36 +80,36 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 				timeVal, err := time.Parse(time.RFC3339, newV)
 				if err == nil {
 					rec[k] = timeVal.UnixNano()
-					s.AddField(k, "long.timestamp-micros")
+					r.AddField(k, "long.timestamp-micros")
 				}
-				s.AddField(k, "string")
+				r.AddField(k, "string")
 			case reflect.Int64:
-				s.AddField(k, "long")
+				r.AddField(k, "long")
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
-				s.AddField(k, "int")
+				r.AddField(k, "int")
 			case reflect.Bool:
-				s.AddField(k, "boolean")
+				r.AddField(k, "boolean")
 			case reflect.Float32:
-				s.AddField(k, "float")
+				r.AddField(k, "float")
 			case reflect.Float64:
 				// CHECK IF FLOAT IS ACTUALLY AN INT BECAUSE JSON UNMARSHALLS ALL NUMBERS AS FLOAT64
 				// IF IT IS, EDIT THE VALUE SO IT IS AN INT AND THEN USE INT SCHEMA
 				isInt := isFloatInt(v.(float64))
 				if !isInt {
-					s.AddField(k, "double")
+					r.AddField(k, "double")
 				} else {
 					newV, _ := v.(int)
 					rec[k] = newV
-					s.AddField(k, "int")
+					r.AddField(k, "int")
 				}
 			default:
-				s.AddField(k, "string")
+				r.AddField(k, "string")
 			}
 		}
 	}
 }
 
-func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[string]interface{} {
+func (r *RowSchema) AddNulls(FormattedRecords []map[string]interface{}) []map[string]interface{} {
 	var (
 		rawWg                 sync.WaitGroup
 		mx                    sync.Mutex
@@ -121,7 +121,7 @@ func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[strin
 		go func() {
 			defer rawWg.Done()
 			for rec := range rChan {
-				for _, f := range s.Fields {
+				for _, f := range r.Fields {
 					exists := false
 					for k := range rec {
 						// IF SCHEMA KEY IS IN RECORD THEN BREAK, ELSE KEEP LOOKING IN REC
@@ -151,35 +151,35 @@ func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[strin
 	return FormattedRecordsNulls
 }
 
+func (r *RowSchema) ToJSON() ([]byte, error) {
+	return json.Marshal(r)
+}
+
 func (s *Schema) ToJSON() ([]byte, error) {
 	return json.Marshal(s)
 }
 
-func (p *ParsableSchema) ToJSON() ([]byte, error) {
-	return json.Marshal(p)
+func (r *RowSchema) FromJSON(fileReader io.Reader) error {
+	return json.NewDecoder(fileReader).Decode(&r)
 }
 
-func (s *Schema) FromJSON(fileReader io.Reader) error {
-	return json.NewDecoder(fileReader).Decode(&s)
-}
-
-func (s *Schema) ToFile(dataset string) error {
-	JSONb, err := s.ToJSON()
+func (r *RowSchema) ToFile(dataset string) error {
+	JSONb, err := r.ToJSON()
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", dataset, s.Namespace), JSONb, 0644)
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", dataset, r.Namespace), JSONb, 0644)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-func (p *ParsableSchema) ToFile(dataset string) error {
-	JSONb, err := p.ToJSON()
+func (s *Schema) ToFile(dataset string) error {
+	JSONb, err := s.ToJSON()
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", dataset, p.Items.Namespace), JSONb, 0644)
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", dataset, s.Items.Namespace), JSONb, 0644)
 	if err != nil {
 		return err
 	}

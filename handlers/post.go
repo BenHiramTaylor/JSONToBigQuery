@@ -103,7 +103,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// PARSE OUR AVSC DATA THROUGH THE ENCODER
-	schemaBytes, err := s.Items.ToJSON()
+	schemaBytes, err := s.ToJSON()
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
