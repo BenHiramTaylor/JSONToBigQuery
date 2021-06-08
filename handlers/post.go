@@ -102,17 +102,17 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// DUMP THE AVSC TO FILE
+	err = s.ToFile(jtaData.DatasetName)
+	if err != nil {
+		log.Printf("ERROR DUMPING SCHEMA TO AVSC FILE: %v", err.Error())
+	}
+
 	// PARSE OUR AVSC DATA THROUGH THE ENCODER
 	schemaBytes, err := s.ToJSON()
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	// DUMP THE AVSC TO FILE
-	err = s.ToFile(jtaData.DatasetName)
-	if err != nil {
-		log.Printf("ERROR DUMPING SCHEMA TO AVSC FILE: %v", err.Error())
 	}
 	// DUMP THE FORMATTED RECORDS TO AVRO
 	Eavro.Register(jtaData.TableName, formattedData)
@@ -145,6 +145,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// DUMP THE RAW JSON TOO
+	// TODO FIX THIS 0 VALUING NULLS
 	jsonData, err := json.Marshal(formattedData)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
