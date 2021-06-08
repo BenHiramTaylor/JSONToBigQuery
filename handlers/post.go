@@ -12,7 +12,6 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 	"github.com/BenHiramTaylor/JSONToBigQuery/gcp"
 	"github.com/go-playground/validator"
-	Eavro "github.com/hamba/avro"
 	"github.com/hamba/avro/ocf"
 	"google.golang.org/api/googleapi"
 )
@@ -115,7 +114,6 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// DUMP THE FORMATTED RECORDS TO AVRO
-	Eavro.Register(jtaData.TableName, formattedData)
 	f, err := os.Create(fmt.Sprintf("%v/%v", jtaData.DatasetName, avroFile))
 	if err != nil {
 		log.Printf("ERROR OPENING AVRO FILE: %v", err.Error())
