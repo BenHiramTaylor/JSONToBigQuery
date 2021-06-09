@@ -24,7 +24,7 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 
 	// GENERATE SCHEMA NAMES
 	avroName := fmt.Sprintf("%v", request.TableName)
-	avroNameSpace := fmt.Sprintf("%v.avro", avroName)
+	avroNameSpace := fmt.Sprintf("%v.avsc", avroName)
 	schema := NewSchema(avroName, avroNameSpace)
 	pSchema := NewParsableSchema("array", *schema)
 
