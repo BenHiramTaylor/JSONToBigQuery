@@ -1,6 +1,7 @@
 package avro
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,8 @@ import (
 	"reflect"
 	"sync"
 	"time"
+
+	"github.com/hamba/avro/ocf"
 )
 
 type JSONFormattedData []map[string]interface{}
@@ -182,4 +185,26 @@ func (s *Schema) ToFile(dataset string) error {
 		return err
 	}
 	return nil
+}
+
+func (r *RowSchema) WriteRecords(records []map[string]interface{}) ([]byte, error) {
+	w := &bytes.Buffer{}
+	schemaBytes, err := r.ToJSON()
+	if err != nil {
+		return nil, err
+	}
+	ocf.WithCodec(ocf.Snappy)
+	enc, err := ocf.NewEncoder(string(schemaBytes), w)
+	if err != nil {
+		log.Printf("ERROR CREATING ENCODER: %v", err.Error())
+		return nil, err
+	}
+	for _, v := range records {
+		err = enc.Encode(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+	log.Println(w.Bytes())
+	return w.Bytes(), nil
 }
