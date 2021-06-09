@@ -42,7 +42,7 @@ func updateTableSchema(client *bigquery.Client, datasetID, tableID string, sch a
 		return err
 	}
 	newSchema = append(meta.Schema)
-	for _, af := range sch.Items.Fields {
+	for _, af := range sch.Fields {
 		exists := false
 		afType := ""
 		for _, tf := range newSchema {
