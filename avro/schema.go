@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	Eavro "github.com/hamba/avro"
+	"github.com/hamba/avro/ocf"
 )
 
 type JSONFormattedData []map[string]interface{}
@@ -193,7 +193,8 @@ func (r *RowSchema) WriteRecords(records []map[string]interface{}) ([]byte, erro
 	if err != nil {
 		return nil, err
 	}
-	enc, err := Eavro.NewEncoder(string(schemaBytes), w)
+	ocf.WithCodec(ocf.Snappy)
+	enc, err := ocf.NewEncoder(string(schemaBytes), w)
 	if err != nil {
 		log.Printf("ERROR CREATING ENCODER: %v", err.Error())
 		return nil, err
@@ -203,6 +204,9 @@ func (r *RowSchema) WriteRecords(records []map[string]interface{}) ([]byte, erro
 		if err != nil {
 			return nil, err
 		}
+	}
+	if err = enc.Flush(); err != nil {
+		return nil, err
 	}
 	return w.Bytes(), nil
 }
