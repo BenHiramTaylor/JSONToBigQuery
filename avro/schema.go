@@ -80,11 +80,10 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 				// CHECK IF FLOAT IS ACTUALLY AN INT BECAUSE JSON UNMARSHALLS ALL NUMBERS AS FLOAT64
 				// IF IT IS, EDIT THE VALUE SO IT IS AN INT AND THEN USE INT SCHEMA
 				isInt := isFloatInt(v.(float64))
-				log.Printf("INT %v isInt: %v", v, isInt)
 				if !isInt {
 					s.AddField(k, "double")
 				} else {
-					newV, _ := v.(int)
+					newV := int(v.(float64))
 					rec[k] = newV
 					s.AddField(k, "int")
 				}
