@@ -12,7 +12,6 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 	"github.com/BenHiramTaylor/JSONToBigQuery/gcp"
 	"github.com/go-playground/validator"
-	"github.com/hamba/avro/ocf"
 	"google.golang.org/api/googleapi"
 )
 
@@ -102,42 +101,21 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// DUMP THE AVSC TO FILE
-	err = s.ToFile(jtaData.DatasetName)
+	err = s.Items.ToFile(jtaData.DatasetName)
 	if err != nil {
 		log.Printf("ERROR DUMPING SCHEMA TO AVSC FILE: %v", err.Error())
 	}
 
 	// PARSE OUR AVSC DATA THROUGH THE ENCODER
-	schemaBytes, err := s.ToJSON()
+	avroBytes, err := s.Items.WriteRecords(formattedData)
 	if err != nil {
-		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// DUMP THE FORMATTED RECORDS TO AVRO
-	f, err := os.Create(fmt.Sprintf("%v/%v", jtaData.DatasetName, avroFile))
-	if err != nil {
-		log.Printf("ERROR OPENING AVRO FILE: %v", err.Error())
-		return
-	}
-	defer f.Close()
-	enc, err := ocf.NewEncoder(string(schemaBytes), f)
-	if err != nil {
-		log.Printf("ERROR CREATING ENCODER: %v", err.Error())
-		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	err = enc.Encode(formattedData)
-	if err != nil {
-		log.Printf("ERROR ENCODING JSON DATA: %v", err.Error())
-		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if err := enc.Flush(); err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err := f.Sync(); err != nil {
+	// DUMP THE FORMATTED RECORDS TO AVRO
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", jtaData.DatasetName, avroFile), avroBytes, 0644)
+	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
