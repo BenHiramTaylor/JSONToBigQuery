@@ -101,13 +101,13 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// DUMP THE AVSC TO FILE
-	err = s.Items.ToFile(jtaData.DatasetName)
+	err = s.ToFile(jtaData.DatasetName)
 	if err != nil {
 		log.Printf("ERROR DUMPING SCHEMA TO AVSC FILE: %v", err.Error())
 	}
 
 	// PARSE OUR AVSC DATA THROUGH THE ENCODER
-	avroBytes, err := s.Items.WriteRecords(formattedData)
+	avroBytes, err := s.WriteRecords(formattedData)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return

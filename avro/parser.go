@@ -26,7 +26,6 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 	avroName := fmt.Sprintf("%v", request.TableName)
 	avroNameSpace := fmt.Sprintf("%v.avsc", avroName)
 	schema := NewSchema(avroName, avroNameSpace)
-	pSchema := NewParsableSchema("array", *schema)
 
 	// TRY TO LOAD AVSC FILE
 	avscData, err := ioutil.ReadFile(fmt.Sprintf("%v/%v.avsc", request.DatasetName, request.TableName))
@@ -36,12 +35,12 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 			return Schema{}, nil, err
 		}
 	} else {
-		err = json.Unmarshal(avscData, pSchema)
+		err = json.Unmarshal(avscData, schema)
 		if err != nil {
 			log.Printf("ERROR READING AVSC BYTES TO STRUCT: %v", err.Error())
 			return Schema{}, nil, err
 		} else {
-			log.Printf("LOADED SCHEMA FROM GCS: %#v", pSchema)
+			log.Printf("LOADED SCHEMA FROM GCS: %#v", schema)
 		}
 	}
 
@@ -78,11 +77,11 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 
 	// ADD THE SLICE OF FORMATTED RECORDS TO THE SCHEMA STRUCT FOR EASIER METHOD ACCESS LATER
 	log.Println("Finished parsing all records.")
-	pSchema.Items.GenerateSchemaFields(ParsedRecs)
-	ParsedRecsWithNulls := pSchema.Items.AddNulls(ParsedRecs)
+	schema.GenerateSchemaFields(ParsedRecs)
+	ParsedRecsWithNulls := schema.AddNulls(ParsedRecs)
 	log.Printf("PARSED RECS WITH NULLS: %v", ParsedRecsWithNulls)
-	log.Printf("FULL SCHEMA: %#v", pSchema)
-	return *pSchema, ParsedRecsWithNulls, nil
+	log.Printf("FULL SCHEMA: %#v", schema)
+	return *schema, ParsedRecsWithNulls, nil
 }
 func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}) {
 	sendOnChan := true
