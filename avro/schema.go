@@ -93,7 +93,8 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 				newV, _ := v.(string)
 				timeVal, err := time.Parse(time.RFC3339, newV)
 				if err == nil {
-					rec[k] = timeVal.Unix()
+					// BIGQUERY TAKES UNIX MICROS SO WE GET NANO AND DIVIDE BY 1000
+					rec[k] = timeVal.UnixNano() / 1000
 					timestampFields = append(timestampFields, k)
 					s.AddField(k, "long")
 				} else {
