@@ -93,7 +93,7 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 				newV, _ := v.(string)
 				timeVal, err := time.Parse(time.RFC3339, newV)
 				if err == nil {
-					rec[k] = timeVal.UnixNano()
+					rec[k] = timeVal.Unix()
 					timestampFields = append(timestampFields, k)
 					s.AddField(k, "long")
 				} else {
