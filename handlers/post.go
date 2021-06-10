@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/BenHiramTaylor/JSONToBigQuery/avro"
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
@@ -46,6 +47,11 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	jsonFile := fmt.Sprintf("%v.json", jtaData.TableName)
 	avroFile := fmt.Sprintf("%v.avro", jtaData.TableName)
 	avroFiles := []string{avscFile, jsonFile, avroFile}
+
+	// GET TIMESTAMP FORMAT OR USE DEFAULT
+	if jtaData.TimestampFormat == "" {
+		jtaData.TimestampFormat = time.RFC3339
+	}
 
 	// CREATE A FOLDER FOR THE DATASET
 	err = os.Mkdir(jtaData.DatasetName, os.ModePerm)

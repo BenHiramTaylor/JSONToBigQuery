@@ -8,11 +8,12 @@ import (
 )
 
 type JtBRequest struct {
-	ProjectID   string                   `json:"ProjectID" validate:"required"`
-	DatasetName string                   `json:"DatasetName" validate:"required"`
-	TableName   string                   `json:"TableName" validate:"required"`
-	IdField     string                   `json:"IdField"`
-	Data        []map[string]interface{} `json:"Data" validate:"required"`
+	ProjectID       string                   `json:"ProjectID" validate:"required"`
+	DatasetName     string                   `json:"DatasetName" validate:"required"`
+	TableName       string                   `json:"TableName" validate:"required"`
+	IdField         string                   `json:"IdField"`
+	TimestampFormat string                   `json:"TimestampFormat"`
+	Data            []map[string]interface{} `json:"Data" validate:"required"`
 }
 
 func NewJTB() *JtBRequest {

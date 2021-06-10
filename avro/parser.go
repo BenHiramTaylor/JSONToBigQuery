@@ -77,7 +77,7 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, [
 
 	// ADD THE SLICE OF FORMATTED RECORDS TO THE SCHEMA STRUCT FOR EASIER METHOD ACCESS LATER
 	log.Println("Finished parsing all records.")
-	timestampFields := schema.GenerateSchemaFields(ParsedRecs)
+	timestampFields := schema.GenerateSchemaFields(ParsedRecs, request.TimestampFormat)
 	ParsedRecsWithNulls := schema.AddNulls(ParsedRecs)
 	log.Printf("PARSED RECS WITH NULLS: %v", ParsedRecsWithNulls)
 	log.Printf("FULL SCHEMA: %#v", schema)

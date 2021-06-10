@@ -64,7 +64,8 @@ func isFloatInt(floatValue float64) bool {
 	return math.Mod(floatValue, 1.0) == 0
 }
 
-func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{}) []string {
+func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{}, timestampFormat string) []string {
+	log.Printf("GOT TIMESTAMP FORMAT: %v", timestampFormat)
 	timestampFields := make([]string, len(FormattedRecords))
 	for _, rec := range FormattedRecords {
 		for k, v := range rec {
@@ -91,7 +92,7 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 			case reflect.String:
 				// ATTEMPT TO CONVERT STRINGS TO time.Time objects, IF IT FAILS THEN ITS JUST STRING, ELSE MAKE IT A TIMESTAMP
 				newV, _ := v.(string)
-				timeVal, err := time.Parse(time.RFC3339, newV)
+				timeVal, err := time.Parse(timestampFormat, newV)
 				if err == nil {
 					// BIGQUERY TAKES UNIX MICROS SO WE GET NANO AND DIVIDE BY 1000
 					rec[k] = timeVal.UnixNano() / 1000
