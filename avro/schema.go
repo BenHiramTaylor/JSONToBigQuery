@@ -60,34 +60,12 @@ func (s *Schema) AddField(FieldName, Type string) {
 	s.Fields = append(s.Fields, *nf)
 }
 
-func (s *Schema) AddLogicalType(FieldName, Type, LogicalType string) {
-	for i, f := range s.Fields {
-		if f.Name == FieldName {
-			for _, fv := range f.FieldType {
-				if fv == "null" {
-					continue
-				}
-				if fv != Type {
-					s.Fields[i] = *NewField(FieldName, "string")
-					return
-				} else {
-					return
-				}
-			}
-		}
-	}
-
-	fieldTypeString := fmt.Sprintf(`{"type":"%v","logicalType":"%v"}`, Type, LogicalType)
-	nf := NewField(FieldName, fieldTypeString)
-	log.Printf("New Field Added to %v : %#v", s.Namespace, nf)
-	s.Fields = append(s.Fields, *nf)
-}
-
 func isFloatInt(floatValue float64) bool {
 	return math.Mod(floatValue, 1.0) == 0
 }
 
-func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{}) {
+func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{}) []string {
+	timestampFields := make([]string, len(FormattedRecords))
 	for _, rec := range FormattedRecords {
 		for k, v := range rec {
 			switch reflect.ValueOf(v).Kind() {
@@ -115,14 +93,16 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{})
 				newV, _ := v.(string)
 				timeVal, err := time.Parse(time.RFC3339, newV)
 				if err == nil {
-					rec[k] = timeVal
-					s.AddLogicalType(k, "long", "timestamp-micros")
+					rec[k] = timeVal.UnixNano()
+					timestampFields = append(timestampFields, k)
+					s.AddField(k, "long")
 				} else {
 					s.AddField(k, "string")
 				}
 			}
 		}
 	}
+	return timestampFields
 }
 
 func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[string]interface{} {

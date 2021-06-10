@@ -12,7 +12,7 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 )
 
-func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, error) {
+func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, []string, error) {
 	// GENERATE VARS
 	var (
 		parseWg    sync.WaitGroup
@@ -32,13 +32,13 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 	if err != nil {
 		if _, ok := err.(*os.PathError); !ok {
 			log.Printf("ERROR READING AVSC FILE: %v", err.Error())
-			return Schema{}, nil, err
+			return Schema{}, nil, nil, err
 		}
 	} else {
 		err = json.Unmarshal(avscData, schema)
 		if err != nil {
 			log.Printf("ERROR READING AVSC BYTES TO STRUCT: %v", err.Error())
-			return Schema{}, nil, err
+			return Schema{}, nil, nil, err
 		} else {
 			log.Printf("LOADED SCHEMA FROM GCS: %#v", schema)
 		}
@@ -77,11 +77,11 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, e
 
 	// ADD THE SLICE OF FORMATTED RECORDS TO THE SCHEMA STRUCT FOR EASIER METHOD ACCESS LATER
 	log.Println("Finished parsing all records.")
-	schema.GenerateSchemaFields(ParsedRecs)
+	timestampFields := schema.GenerateSchemaFields(ParsedRecs)
 	ParsedRecsWithNulls := schema.AddNulls(ParsedRecs)
 	log.Printf("PARSED RECS WITH NULLS: %v", ParsedRecsWithNulls)
 	log.Printf("FULL SCHEMA: %#v", schema)
-	return *schema, ParsedRecsWithNulls, nil
+	return *schema, ParsedRecsWithNulls, timestampFields, nil
 }
 func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}) {
 	sendOnChan := true

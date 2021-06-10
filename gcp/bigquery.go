@@ -13,13 +13,12 @@ import (
 
 var (
 	bqSchemaMap = map[string]bigquery.FieldType{
-		"string":                bigquery.StringFieldType,
-		"int":                   bigquery.IntegerFieldType,
-		"long":                  bigquery.IntegerFieldType,
-		"float":                 bigquery.FloatFieldType,
-		"double":                bigquery.FloatFieldType,
-		"boolean":               bigquery.BooleanFieldType,
-		"long.timestamp-micros": bigquery.TimestampFieldType,
+		"string":  bigquery.StringFieldType,
+		"int":     bigquery.IntegerFieldType,
+		"long":    bigquery.IntegerFieldType,
+		"float":   bigquery.FloatFieldType,
+		"double":  bigquery.FloatFieldType,
+		"boolean": bigquery.BooleanFieldType,
 	}
 )
 
@@ -33,7 +32,7 @@ func GetBQClient(credsPath string, projectID string) (*bigquery.Client, error) {
 	return client, nil
 }
 
-func updateTableSchema(client *bigquery.Client, datasetID, tableID string, sch avro.Schema) error {
+func updateTableSchema(client *bigquery.Client, datasetID, tableID string, timestampFields []string, sch avro.Schema) error {
 	var newSchema = bigquery.Schema{}
 	ctx := context.Background()
 	tableRef := client.Dataset(datasetID).Table(tableID)
@@ -64,6 +63,15 @@ func updateTableSchema(client *bigquery.Client, datasetID, tableID string, sch a
 			newSchema = append(newSchema,
 				&bigquery.FieldSchema{Name: af.Name, Type: bqSchemaMap[afType]},
 			)
+		}
+	}
+	for i, fs := range newSchema {
+		for _, tk := range timestampFields {
+			if tk != fs.Name {
+				continue
+			} else {
+				newSchema[i] = &bigquery.FieldSchema{Name: fs.Name, Type: bigquery.TimestampFieldType}
+			}
 		}
 	}
 
@@ -107,12 +115,12 @@ func getTableSchema(client *bigquery.Client, datasetID, tableID string) (bigquer
 	return meta.Schema, nil
 }
 
-func PrepareTable(client *bigquery.Client, datasetID, tableID string, sch avro.Schema) error {
+func PrepareTable(client *bigquery.Client, datasetID, tableID string, timestampFields []string, sch avro.Schema) error {
 	err := createTable(client, datasetID, tableID)
 	if err != nil {
 		return err
 	}
-	err = updateTableSchema(client, datasetID, tableID, sch)
+	err = updateTableSchema(client, datasetID, tableID, timestampFields, sch)
 	if err != nil {
 		return err
 	}

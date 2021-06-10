@@ -94,7 +94,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// BEGIN PARSING THE REQUEST USING THE AVRO MODULE, THIS FORMATS DATA AND CREATES SCHEMA
-	s, formattedData, err := avro.ParseRequest(jtaData)
+	s, formattedData, timestampFields, err := avro.ParseRequest(jtaData)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -155,7 +155,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// CREATE TABLE AND ADD ANY NEW SCHEMA USING SCHEMA FIELD NAMES
-	err = gcp.PrepareTable(bqClient, jtaData.DatasetName, jtaData.TableName, s)
+	err = gcp.PrepareTable(bqClient, jtaData.DatasetName, jtaData.TableName, timestampFields, s)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusBadRequest)
 		return
