@@ -101,7 +101,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// BEGIN PARSING THE REQUEST USING THE AVRO MODULE, THIS FORMATS DATA AND CREATES SCHEMA
-	s, formattedData, timestampFields, err := avro.ParseRequest(jtaData, ListMappings)
+	s, formattedData, ListMappings, timestampFields, err := avro.ParseRequest(jtaData)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
