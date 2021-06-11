@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/BenHiramTaylor/JSONToBigQuery/avro"
@@ -43,10 +44,13 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	log.Printf("GOT REQUEST: %#v", jtaData)
 
 	// CREATE LIST OF FILE NAMES
-	avscFile := fmt.Sprintf("%v.avsc", jtaData.TableName)
-	jsonFile := fmt.Sprintf("%v.json", jtaData.TableName)
-	avroFile := fmt.Sprintf("%v.avro", jtaData.TableName)
-	avroFiles := []string{avscFile, jsonFile, avroFile}
+	var (
+		avscFile     = fmt.Sprintf("%v.avsc", jtaData.TableName)
+		jsonFile     = fmt.Sprintf("%v.json", jtaData.TableName)
+		avroFile     = fmt.Sprintf("%v.avro", jtaData.TableName)
+		avroFiles    = []string{avscFile, jsonFile, avroFile}
+		fileUploadWg sync.WaitGroup
+	)
 
 	// GET TIMESTAMP FORMAT OR USE DEFAULT
 	if jtaData.TimestampFormat == "" {
@@ -140,13 +144,17 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// UPLOAD FILES TO BUCKET
-	for _, f := range avroFiles {
-		err = gcp.UploadBlobToStorage(storClient, bucketName, jtaData.DatasetName, f)
-		if err != nil {
-			log.Printf("ERROR UPLOADING AVRO FILE: %v %v", f, err.Error())
+	fileUploadWg.Add(1)
+	go func() {
+		// UPLOAD FILES TO BUCKET
+		for _, f := range avroFiles {
+			err = gcp.UploadBlobToStorage(storClient, bucketName, jtaData.DatasetName, f)
+			if err != nil {
+				log.Printf("ERROR UPLOADING AVRO FILE: %v %v", f, err.Error())
+			}
 		}
-	}
+		fileUploadWg.Done()
+	}()
 
 	// CREATING BQ CLIENT
 	bqClient, err := gcp.GetBQClient(credsFilePath, jtaData.ProjectID)
@@ -166,6 +174,8 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		data.ErrorWithJSON(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	fileUploadWg.Wait()
 	// LOAD THE DATA FROM GCS
 	err = gcp.LoadAvroToTable(bqClient, bucketName, jtaData.DatasetName, jtaData.TableName, avroFile)
 	if err != nil {
