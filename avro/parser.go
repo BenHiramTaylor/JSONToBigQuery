@@ -100,7 +100,7 @@ func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[st
 			sendOnChan = false
 		// IF IT IS AN ARRAY THEN PARSE IT INTO THE LIST MAPPINGS SCHEMA
 		case reflect.Array:
-			// TODO ADD LIST MAPPINGS LOGIC HERE
+			continue
 		default:
 			formattedRec[k] = v
 		}
