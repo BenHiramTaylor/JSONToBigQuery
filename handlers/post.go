@@ -17,11 +17,6 @@ import (
 	"google.golang.org/api/googleapi"
 )
 
-var (
-	BucketName    = "jtb-source-structures"
-	CredsFilePath = os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-)
-
 func JtBPost(w http.ResponseWriter, r *http.Request) {
 	// CONSTRUCT NEW JTB INSTANCE
 	jtaData := data.NewJTB()
@@ -65,7 +60,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// CREATE A STORAGE CLIENT TO TEST THE AUTH
-	storClient, err := gcp.GetStorageClient(CredsFilePath)
+	storClient, err := gcp.GetStorageClient(data.CredsFilePath)
 	if err != nil {
 		log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
@@ -76,7 +71,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// CREATE BUCKET IF NOT BEEN MADE BEFORE
-	err = gcp.CreateBucket(storClient, jtaData.ProjectID, BucketName)
+	err = gcp.CreateBucket(storClient, jtaData.ProjectID, data.BucketName)
 	if err != nil {
 		if e, ok := err.(*googleapi.Error); ok {
 			if e.Code != 409 {
@@ -93,7 +88,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		if v == avroFile {
 			continue
 		}
-		err = gcp.DownloadBlobFromStorage(storClient, BucketName, jtaData.DatasetName, v)
+		err = gcp.DownloadBlobFromStorage(storClient, data.BucketName, jtaData.DatasetName, v)
 		if err != nil {
 			if err.Error() == "storage: object doesn't exist" {
 				continue
@@ -147,7 +142,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		// UPLOAD FILES TO BUCKET
 		for _, f := range avroFiles {
-			err = gcp.UploadBlobToStorage(storClient, BucketName, jtaData.DatasetName, f)
+			err = gcp.UploadBlobToStorage(storClient, data.BucketName, jtaData.DatasetName, f)
 			if err != nil {
 				log.Printf("ERROR UPLOADING AVRO FILE: %v %v", f, err.Error())
 			}
@@ -156,7 +151,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// CREATING BQ CLIENT
-	bqClient, err := gcp.GetBQClient(CredsFilePath, jtaData.ProjectID)
+	bqClient, err := gcp.GetBQClient(data.CredsFilePath, jtaData.ProjectID)
 	if err != nil {
 		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
@@ -176,7 +171,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 
 	fileUploadWg.Wait()
 	// LOAD THE DATA FROM GCS
-	err = gcp.LoadAvroToTable(bqClient, BucketName, jtaData.DatasetName, jtaData.TableName, avroFile)
+	err = gcp.LoadAvroToTable(bqClient, data.BucketName, jtaData.DatasetName, jtaData.TableName, avroFile)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return

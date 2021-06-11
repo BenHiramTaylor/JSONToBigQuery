@@ -11,7 +11,6 @@ import (
 
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 	"github.com/BenHiramTaylor/JSONToBigQuery/gcp"
-	"github.com/BenHiramTaylor/JSONToBigQuery/handlers"
 )
 
 func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]interface{}) {
@@ -56,7 +55,7 @@ func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]inte
 	storWg.Add(1)
 	go func() {
 		// CREATE A STORAGE CLIENT TO TEST THE AUTH
-		storClient, err := gcp.GetStorageClient(handlers.CredsFilePath)
+		storClient, err := gcp.GetStorageClient(data.CredsFilePath)
 		if err != nil {
 			log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
 			return
@@ -67,7 +66,7 @@ func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]inte
 		}
 
 		// UPLOAD FILE TO BUCKET
-		err = gcp.UploadBlobToStorage(storClient, handlers.BucketName, request.DatasetName, listSchema.Name)
+		err = gcp.UploadBlobToStorage(storClient, data.BucketName, request.DatasetName, listSchema.Name)
 		if err != nil {
 			log.Printf("ERROR UPLOADING AVRO FILE: %v %v", listSchema.Name, err.Error())
 		}
@@ -75,7 +74,7 @@ func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]inte
 	}()
 
 	// CREATING BQ CLIENT
-	bqClient, err := gcp.GetBQClient(handlers.CredsFilePath, request.ProjectID)
+	bqClient, err := gcp.GetBQClient(data.CredsFilePath, request.ProjectID)
 	if err != nil {
 		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
 		return
@@ -93,7 +92,7 @@ func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]inte
 		return
 	}
 	// LOAD THE DATA FROM GCS
-	err = gcp.LoadAvroToTable(bqClient, handlers.BucketName, request.DatasetName, "ListMappings", listSchema.Name)
+	err = gcp.LoadAvroToTable(bqClient, data.BucketName, request.DatasetName, "ListMappings", listSchema.Name)
 	if err != nil {
 		log.Printf("ERROR LOADING LISTMAPPINGS TABLE: %v", err.Error())
 		return
