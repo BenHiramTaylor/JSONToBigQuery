@@ -38,6 +38,9 @@ func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]inte
 		}
 	}
 	log.Printf("Finished Parsing all list mappings: %v", listMappings)
+	if len(listMappings) == 0 {
+		return
+	}
 	// PARSE OUR AVSC DATA THROUGH THE ENCODER
 	avroBytes, err := listSchema.WriteRecords(listMappings)
 	if err != nil {
