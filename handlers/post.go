@@ -40,19 +40,19 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 
 	// CREATE LIST OF FILE NAMES AND STORAGE WG
 	var (
-		avscFile       = fmt.Sprintf("%v.avsc", jtaData.TableName)
-		jsonFile       = fmt.Sprintf("%v.json", jtaData.TableName)
-		avroFile       = fmt.Sprintf("%v.avro", jtaData.TableName)
-		avroFiles      = []string{avscFile, jsonFile, avroFile}
-		fileUploadWg   sync.WaitGroup
-		listMappingsWg sync.WaitGroup
+		avscFile     = fmt.Sprintf("%v.avsc", jtaData.TableName)
+		jsonFile     = fmt.Sprintf("%v.json", jtaData.TableName)
+		avroFile     = fmt.Sprintf("%v.avro", jtaData.TableName)
+		avroFiles    = []string{avscFile, jsonFile, avroFile}
+		fileUploadWg sync.WaitGroup
+		listMapWg    sync.WaitGroup
 	)
 
 	// START GOROUTINE FOR PARSING LIST MAPPINGS
-	listMappingsWg.Add(1)
+	listMapWg.Add(1)
 	go func() {
 		parseListMappings(jtaData, data.ListChan)
-		listMappingsWg.Done()
+		listMapWg.Done()
 	}()
 
 	// GET TIMESTAMP FORMAT OR USE DEFAULT
@@ -185,8 +185,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	listMappingsWg.Wait()
-
+	listMapWg.Wait()
 	// THIS IS TEST LOGIC TO RETURN SCHEMA
 	resp := data.NewResponse("Success", fmt.Sprintf("Successfully Inserted %v number of rows into %v.%v.%v.", len(formattedData), jtaData.ProjectID, jtaData.DatasetName, jtaData.TableName))
 	respJSON, err := resp.ToJSON()
@@ -228,6 +227,7 @@ func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]inte
 	for m := range listChan {
 		for k, v := range m {
 			for _, lv := range v.([]interface{}) {
+				// TODO THIS USED THE IDFIELD NAME NOT THE ACTUAL ID BUT IM TOO CONFUSED WITH CHANNELS AND HOW TO ALSO PASS THE ID OVER
 				listMappings = append(listMappings, map[string]interface{}{"tableName": request.TableName, "idField": request.IdField, "Key": k, "Value": lv})
 			}
 		}

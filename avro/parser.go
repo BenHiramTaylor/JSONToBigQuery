@@ -71,8 +71,8 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, [
 	// CLOSE CHANNEL OF RAW, WAIT FOR FORMATTING TO FINISH, THEN CLOSE FORMATTING CHANNEL AND WAIT
 	// FOR THAT GO ROUTINE TO COMPLETE ADDING TO LIST
 	close(rawChan)
-	close(data.ListChan)
 	parseWg.Wait()
+	close(data.ListChan)
 	close(fChan)
 	formWg.Wait()
 
@@ -100,7 +100,7 @@ func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[st
 			// SET TO FALSE TO AVOID DUPLICATING RECORD FOR EACH NESTED DIC
 			sendOnChan = false
 		// IF IT IS AN ARRAY THEN PARSE IT INTO THE LIST MAPPINGS SCHEMA
-		case reflect.Array:
+		case reflect.Array, reflect.Slice:
 			listChan <- map[string]interface{}{k: v}
 		default:
 			formattedRec[k] = v

@@ -1,6 +1,8 @@
 package data
 
-import "os"
+import (
+	"os"
+)
 
 var (
 	BucketName    = "jtb-source-structures"
