@@ -10,7 +10,95 @@ import (
 	"sync"
 
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
+	"github.com/BenHiramTaylor/JSONToBigQuery/gcp"
+	"github.com/BenHiramTaylor/JSONToBigQuery/handlers"
 )
+
+func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]interface{}) {
+	var (
+		storWg       sync.WaitGroup
+		listMappings = make([]map[string]interface{}, len(listChan))
+		listSchema   = Schema{
+			Name:      fmt.Sprintf("%v.ListMappings.avro", request.TableName),
+			Namespace: fmt.Sprintf("%v.ListMappings.avsc", request.TableName),
+			Type:      "record",
+			Fields: []Field{
+				{Name: "tableName", FieldType: []string{"string", "null"}},
+				{Name: "idField", FieldType: []string{"string", "null"}},
+				{Name: "Key", FieldType: []string{"string", "null"}},
+				{Name: "Value", FieldType: []string{"string", "null"}},
+			},
+		}
+	)
+	log.Printf("LIST SCHEMA: %#v", listSchema)
+	for m := range listChan {
+		for k, v := range m {
+			for _, lv := range v.([]interface{}) {
+				listMappings = append(listMappings, map[string]interface{}{"tableName": request.TableName, "idField": request.IdField, "Key": k, "Value": lv})
+			}
+		}
+	}
+	log.Printf("Finished Parsing all list mappings: %v", listMappings)
+	// PARSE OUR AVSC DATA THROUGH THE ENCODER
+	avroBytes, err := listSchema.WriteRecords(listMappings)
+	if err != nil {
+		log.Printf("ERROR PARSING LIST MAPPINGS: %v", err.Error())
+		return
+	}
+
+	// DUMP THE FORMATTED RECORDS TO AVRO
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", request.DatasetName, listSchema.Name), avroBytes, 0644)
+	if err != nil {
+		log.Printf("ERROR WRITING LIST MAPPINGS AVRO FILE: %v", err.Error())
+		return
+	}
+
+	storWg.Add(1)
+	go func() {
+		// CREATE A STORAGE CLIENT TO TEST THE AUTH
+		storClient, err := gcp.GetStorageClient(handlers.CredsFilePath)
+		if err != nil {
+			log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
+			return
+		}
+		if storClient == nil {
+			log.Printf("ERROR CREATING GCS CLIENT: CLIENT IS NIL IN LISTMAPPINGS")
+			return
+		}
+
+		// UPLOAD FILE TO BUCKET
+		err = gcp.UploadBlobToStorage(storClient, handlers.BucketName, request.DatasetName, listSchema.Name)
+		if err != nil {
+			log.Printf("ERROR UPLOADING AVRO FILE: %v %v", listSchema.Name, err.Error())
+		}
+		storWg.Done()
+	}()
+
+	// CREATING BQ CLIENT
+	bqClient, err := gcp.GetBQClient(handlers.CredsFilePath, request.ProjectID)
+	if err != nil {
+		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
+		return
+	}
+	if bqClient == nil {
+		log.Printf("ERROR CREATING BQ CLIENT: CLIENT IS NIL IN LISTMAPPINGS")
+		return
+	}
+
+	storWg.Wait()
+	// CREATE TABLE AND ADD ANY NEW SCHEMA USING SCHEMA FIELD NAMES
+	err = gcp.PrepareTable(bqClient, request.DatasetName, "ListMappings", []string{}, listSchema)
+	if err != nil {
+		log.Println("ERROR PREPARING TABLE: ListMappings")
+		return
+	}
+	// LOAD THE DATA FROM GCS
+	err = gcp.LoadAvroToTable(bqClient, handlers.BucketName, request.DatasetName, "ListMappings", listSchema.Name)
+	if err != nil {
+		log.Printf("ERROR LOADING LISTMAPPINGS TABLE: %v", err.Error())
+		return
+	}
+}
 
 func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, []string, error) {
 	// GENERATE VARS
@@ -18,14 +106,22 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, [
 		parseWg    sync.WaitGroup
 		formWg     sync.WaitGroup
 		ParsedRecs []map[string]interface{}
+		listChan   = make(chan map[string]interface{})
+		fChan      = make(chan map[string]interface{})
+		rawChan    = make(chan map[string]interface{})
 	)
-	fChan := make(chan map[string]interface{})
-	rawChan := make(chan map[string]interface{})
 
 	// GENERATE SCHEMA NAMES
 	avroName := fmt.Sprintf("%v", request.TableName)
 	avroNameSpace := fmt.Sprintf("%v.avsc", avroName)
 	schema := NewSchema(avroName, avroNameSpace)
+
+	// START GOROUTINE FOR PARSING LIST MAPPINGS
+	parseWg.Add(1)
+	go func() {
+		parseListMappings(request, listChan)
+		parseWg.Done()
+	}()
 
 	// TRY TO LOAD AVSC FILE
 	avscData, err := ioutil.ReadFile(fmt.Sprintf("%v/%v.avsc", request.DatasetName, request.TableName))
@@ -60,7 +156,7 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, [
 			defer parseWg.Done()
 			for rec := range rawChan {
 				formattedRec := make(map[string]interface{})
-				ParseRecord(rec, "", formattedRec, fChan)
+				ParseRecord(rec, "", formattedRec, fChan, listChan)
 			}
 		}()
 	}
@@ -71,6 +167,7 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, [
 	// CLOSE CHANNEL OF RAW, WAIT FOR FORMATTING TO FINISH, THEN CLOSE FORMATTING CHANNEL AND WAIT
 	// FOR THAT GO ROUTINE TO COMPLETE ADDING TO LIST
 	close(rawChan)
+	close(listChan)
 	parseWg.Wait()
 	close(fChan)
 	formWg.Wait()
@@ -83,7 +180,7 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, [
 	log.Printf("FULL SCHEMA: %#v", schema)
 	return *schema, ParsedRecsWithNulls, timestampFields, nil
 }
-func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}) {
+func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}, listChan chan<- map[string]interface{}) {
 	sendOnChan := true
 	// FOR KEY VAL IN THE JSON BLOB
 	for k, v := range rec {
@@ -95,12 +192,12 @@ func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[st
 		switch reflect.ValueOf(v).Kind() {
 		// IF ITS ANOTHER DICT THEN RECURSIVLY REPEAT TO FLATTEN OUT STRUCTURE
 		case reflect.Map:
-			ParseRecord(v.(map[string]interface{}), k, formattedRec, fChan)
+			ParseRecord(v.(map[string]interface{}), k, formattedRec, fChan, listChan)
 			// SET TO FALSE TO AVOID DUPLICATING RECORD FOR EACH NESTED DIC
 			sendOnChan = false
 		// IF IT IS AN ARRAY THEN PARSE IT INTO THE LIST MAPPINGS SCHEMA
 		case reflect.Array:
-			continue
+			listChan <- map[string]interface{}{k: v}
 		default:
 			formattedRec[k] = v
 		}
