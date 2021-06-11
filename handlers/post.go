@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/BenHiramTaylor/JSONToBigQuery/avro"
@@ -17,8 +18,8 @@ import (
 )
 
 var (
-	bucketName    = "jtb-source-structures"
-	credsFilePath = os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	BucketName    = "jtb-source-structures"
+	CredsFilePath = os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 )
 
 func JtBPost(w http.ResponseWriter, r *http.Request) {
@@ -42,11 +43,14 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("GOT REQUEST: %#v", jtaData)
 
-	// CREATE LIST OF FILE NAMES
-	avscFile := fmt.Sprintf("%v.avsc", jtaData.TableName)
-	jsonFile := fmt.Sprintf("%v.json", jtaData.TableName)
-	avroFile := fmt.Sprintf("%v.avro", jtaData.TableName)
-	avroFiles := []string{avscFile, jsonFile, avroFile}
+	// CREATE LIST OF FILE NAMES AND STORAGE WG
+	var (
+		avscFile     = fmt.Sprintf("%v.avsc", jtaData.TableName)
+		jsonFile     = fmt.Sprintf("%v.json", jtaData.TableName)
+		avroFile     = fmt.Sprintf("%v.avro", jtaData.TableName)
+		avroFiles    = []string{avscFile, jsonFile, avroFile}
+		fileUploadWg sync.WaitGroup
+	)
 
 	// GET TIMESTAMP FORMAT OR USE DEFAULT
 	if jtaData.TimestampFormat == "" {
@@ -61,7 +65,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// CREATE A STORAGE CLIENT TO TEST THE AUTH
-	storClient, err := gcp.GetStorageClient(credsFilePath)
+	storClient, err := gcp.GetStorageClient(CredsFilePath)
 	if err != nil {
 		log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
@@ -72,7 +76,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// CREATE BUCKET IF NOT BEEN MADE BEFORE
-	err = gcp.CreateBucket(storClient, jtaData.ProjectID, bucketName)
+	err = gcp.CreateBucket(storClient, jtaData.ProjectID, BucketName)
 	if err != nil {
 		if e, ok := err.(*googleapi.Error); ok {
 			if e.Code != 409 {
@@ -89,7 +93,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		if v == avroFile {
 			continue
 		}
-		err = gcp.DownloadBlobFromStorage(storClient, bucketName, jtaData.DatasetName, v)
+		err = gcp.DownloadBlobFromStorage(storClient, BucketName, jtaData.DatasetName, v)
 		if err != nil {
 			if err.Error() == "storage: object doesn't exist" {
 				continue
@@ -127,7 +131,6 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// DUMP THE RAW JSON TOO
-	// TODO FIX THIS 0 VALUING NULLS
 	jsonData, err := json.Marshal(formattedData)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
@@ -140,16 +143,20 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// UPLOAD FILES TO BUCKET
-	for _, f := range avroFiles {
-		err = gcp.UploadBlobToStorage(storClient, bucketName, jtaData.DatasetName, f)
-		if err != nil {
-			log.Printf("ERROR UPLOADING AVRO FILE: %v %v", f, err.Error())
+	fileUploadWg.Add(1)
+	go func() {
+		// UPLOAD FILES TO BUCKET
+		for _, f := range avroFiles {
+			err = gcp.UploadBlobToStorage(storClient, BucketName, jtaData.DatasetName, f)
+			if err != nil {
+				log.Printf("ERROR UPLOADING AVRO FILE: %v %v", f, err.Error())
+			}
 		}
-	}
+		fileUploadWg.Done()
+	}()
 
 	// CREATING BQ CLIENT
-	bqClient, err := gcp.GetBQClient(credsFilePath, jtaData.ProjectID)
+	bqClient, err := gcp.GetBQClient(CredsFilePath, jtaData.ProjectID)
 	if err != nil {
 		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
@@ -166,8 +173,10 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		data.ErrorWithJSON(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	fileUploadWg.Wait()
 	// LOAD THE DATA FROM GCS
-	err = gcp.LoadAvroToTable(bqClient, bucketName, jtaData.DatasetName, jtaData.TableName, avroFile)
+	err = gcp.LoadAvroToTable(bqClient, BucketName, jtaData.DatasetName, jtaData.TableName, avroFile)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
