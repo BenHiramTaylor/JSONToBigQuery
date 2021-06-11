@@ -40,12 +40,20 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 
 	// CREATE LIST OF FILE NAMES AND STORAGE WG
 	var (
-		avscFile     = fmt.Sprintf("%v.avsc", jtaData.TableName)
-		jsonFile     = fmt.Sprintf("%v.json", jtaData.TableName)
-		avroFile     = fmt.Sprintf("%v.avro", jtaData.TableName)
-		avroFiles    = []string{avscFile, jsonFile, avroFile}
-		fileUploadWg sync.WaitGroup
+		avscFile       = fmt.Sprintf("%v.avsc", jtaData.TableName)
+		jsonFile       = fmt.Sprintf("%v.json", jtaData.TableName)
+		avroFile       = fmt.Sprintf("%v.avro", jtaData.TableName)
+		avroFiles      = []string{avscFile, jsonFile, avroFile}
+		fileUploadWg   sync.WaitGroup
+		listMappingsWg sync.WaitGroup
 	)
+
+	// START GOROUTINE FOR PARSING LIST MAPPINGS
+	listMappingsWg.Add(1)
+	go func() {
+		parseListMappings(jtaData, data.ListChan)
+		listMappingsWg.Done()
+	}()
 
 	// GET TIMESTAMP FORMAT OR USE DEFAULT
 	if jtaData.TimestampFormat == "" {
@@ -177,6 +185,8 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	listMappingsWg.Wait()
+
 	// THIS IS TEST LOGIC TO RETURN SCHEMA
 	resp := data.NewResponse("Success", fmt.Sprintf("Successfully Inserted %v number of rows into %v.%v.%v.", len(formattedData), jtaData.ProjectID, jtaData.DatasetName, jtaData.TableName))
 	respJSON, err := resp.ToJSON()
@@ -196,4 +206,93 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		log.Printf("ERROR DELETING FOLDER: %v", jtaData.DatasetName)
 	}
 	log.Println("Completed request")
+}
+
+func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]interface{}) {
+	var (
+		storWg       sync.WaitGroup
+		listMappings = make([]map[string]interface{}, len(listChan))
+		listSchema   = avro.Schema{
+			Name:      fmt.Sprintf("%v.ListMappings.avro", request.TableName),
+			Namespace: fmt.Sprintf("%v.ListMappings.avsc", request.TableName),
+			Type:      "record",
+			Fields: []avro.Field{
+				{Name: "tableName", FieldType: []string{"string", "null"}},
+				{Name: "idField", FieldType: []string{"string", "null"}},
+				{Name: "Key", FieldType: []string{"string", "null"}},
+				{Name: "Value", FieldType: []string{"string", "null"}},
+			},
+		}
+	)
+	log.Printf("LIST SCHEMA: %#v", listSchema)
+	for m := range listChan {
+		for k, v := range m {
+			for _, lv := range v.([]interface{}) {
+				listMappings = append(listMappings, map[string]interface{}{"tableName": request.TableName, "idField": request.IdField, "Key": k, "Value": lv})
+			}
+		}
+	}
+	log.Printf("Finished Parsing all list mappings: %v", listMappings)
+	if len(listMappings) == 0 {
+		return
+	}
+	// PARSE OUR AVSC DATA THROUGH THE ENCODER
+	avroBytes, err := listSchema.WriteRecords(listMappings)
+	if err != nil {
+		log.Printf("ERROR PARSING LIST MAPPINGS: %v", err.Error())
+		return
+	}
+
+	// DUMP THE FORMATTED RECORDS TO AVRO
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", request.DatasetName, listSchema.Name), avroBytes, 0644)
+	if err != nil {
+		log.Printf("ERROR WRITING LIST MAPPINGS AVRO FILE: %v", err.Error())
+		return
+	}
+
+	storWg.Add(1)
+	go func() {
+		// CREATE A STORAGE CLIENT TO TEST THE AUTH
+		storClient, err := gcp.GetStorageClient(data.CredsFilePath)
+		if err != nil {
+			log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
+			return
+		}
+		if storClient == nil {
+			log.Printf("ERROR CREATING GCS CLIENT: CLIENT IS NIL IN LISTMAPPINGS")
+			return
+		}
+
+		// UPLOAD FILE TO BUCKET
+		err = gcp.UploadBlobToStorage(storClient, data.BucketName, request.DatasetName, listSchema.Name)
+		if err != nil {
+			log.Printf("ERROR UPLOADING AVRO FILE: %v %v", listSchema.Name, err.Error())
+		}
+		storWg.Done()
+	}()
+
+	// CREATING BQ CLIENT
+	bqClient, err := gcp.GetBQClient(data.CredsFilePath, request.ProjectID)
+	if err != nil {
+		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
+		return
+	}
+	if bqClient == nil {
+		log.Printf("ERROR CREATING BQ CLIENT: CLIENT IS NIL IN LISTMAPPINGS")
+		return
+	}
+
+	storWg.Wait()
+	// CREATE TABLE AND ADD ANY NEW SCHEMA USING SCHEMA FIELD NAMES
+	err = gcp.PrepareTable(bqClient, request.DatasetName, "ListMappings", []string{}, listSchema)
+	if err != nil {
+		log.Println("ERROR PREPARING TABLE: ListMappings")
+		return
+	}
+	// LOAD THE DATA FROM GCS
+	err = gcp.LoadAvroToTable(bqClient, data.BucketName, request.DatasetName, "ListMappings", listSchema.Name)
+	if err != nil {
+		log.Printf("ERROR LOADING LISTMAPPINGS TABLE: %v", err.Error())
+		return
+	}
 }
