@@ -12,7 +12,9 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 )
 
-func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, []string, error) {
+var ListMX sync.Mutex
+
+func ParseRequest(request *data.JtBRequest, ListMappings []map[string]interface{}) (Schema, []map[string]interface{}, []string, error) {
 	// GENERATE VARS
 	var (
 		parseWg    sync.WaitGroup
@@ -59,8 +61,9 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, [
 		go func() {
 			defer parseWg.Done()
 			for rec := range rawChan {
+				idField := rec[request.IdField]
 				formattedRec := make(map[string]interface{})
-				ParseRecord(rec, "", formattedRec, fChan, data.ListChan)
+				ParseRecord(rec, "", formattedRec, fChan, request.TableName, fmt.Sprintf("%v", idField), ListMappings)
 			}
 		}()
 	}
@@ -72,7 +75,6 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, [
 	// FOR THAT GO ROUTINE TO COMPLETE ADDING TO LIST
 	close(rawChan)
 	parseWg.Wait()
-	close(data.ListChan)
 	close(fChan)
 	formWg.Wait()
 
@@ -84,7 +86,7 @@ func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, [
 	log.Printf("FULL SCHEMA: %#v", schema)
 	return *schema, ParsedRecsWithNulls, timestampFields, nil
 }
-func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}, listChan chan<- map[string]interface{}) {
+func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}, TableName, IdField string, ListMappings []map[string]interface{}) {
 	sendOnChan := true
 	// FOR KEY VAL IN THE JSON BLOB
 	for k, v := range rec {
@@ -96,12 +98,17 @@ func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[st
 		switch reflect.ValueOf(v).Kind() {
 		// IF ITS ANOTHER DICT THEN RECURSIVLY REPEAT TO FLATTEN OUT STRUCTURE
 		case reflect.Map:
-			ParseRecord(v.(map[string]interface{}), k, formattedRec, fChan, listChan)
+			ParseRecord(v.(map[string]interface{}), k, formattedRec, fChan, TableName, IdField, ListMappings)
 			// SET TO FALSE TO AVOID DUPLICATING RECORD FOR EACH NESTED DIC
 			sendOnChan = false
 		// IF IT IS AN ARRAY THEN PARSE IT INTO THE LIST MAPPINGS SCHEMA
 		case reflect.Array, reflect.Slice:
-			listChan <- map[string]interface{}{k: v}
+			for _, lv := range v.([]interface{}) {
+				ListMX.Lock()
+				ListMappings = append(ListMappings, map[string]interface{}{"tableName": TableName, "idField": IdField, "Key": k, "Value": lv})
+				ListMX.Unlock()
+			}
+
 		default:
 			formattedRec[k] = v
 		}

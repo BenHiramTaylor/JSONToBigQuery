@@ -46,14 +46,8 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		avroFiles    = []string{avscFile, jsonFile, avroFile}
 		fileUploadWg sync.WaitGroup
 		listMapWg    sync.WaitGroup
+		ListMappings = make([]map[string]interface{}, 0)
 	)
-
-	// START GOROUTINE FOR PARSING LIST MAPPINGS
-	listMapWg.Add(1)
-	go func() {
-		parseListMappings(jtaData, data.ListChan)
-		listMapWg.Done()
-	}()
 
 	// GET TIMESTAMP FORMAT OR USE DEFAULT
 	if jtaData.TimestampFormat == "" {
@@ -107,11 +101,18 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// BEGIN PARSING THE REQUEST USING THE AVRO MODULE, THIS FORMATS DATA AND CREATES SCHEMA
-	s, formattedData, timestampFields, err := avro.ParseRequest(jtaData)
+	s, formattedData, timestampFields, err := avro.ParseRequest(jtaData, ListMappings)
 	if err != nil {
 		data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// START GOROUTINE FOR PARSING LIST MAPPINGS
+	listMapWg.Add(1)
+	go func() {
+		parseListMappings(jtaData, ListMappings)
+		listMapWg.Done()
+	}()
 
 	// DUMP THE AVSC TO FILE
 	err = s.ToFile(jtaData.DatasetName)
@@ -207,11 +208,10 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	log.Println("Completed request")
 }
 
-func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]interface{}) {
+func parseListMappings(request *data.JtBRequest, ListMappings []map[string]interface{}) {
 	var (
-		storWg       sync.WaitGroup
-		listMappings = make([]map[string]interface{}, len(listChan))
-		listSchema   = avro.Schema{
+		storWg     sync.WaitGroup
+		listSchema = avro.Schema{
 			Name:      fmt.Sprintf("%v.ListMappings.avro", request.TableName),
 			Namespace: fmt.Sprintf("%v.ListMappings.avsc", request.TableName),
 			Type:      "record",
@@ -224,20 +224,12 @@ func parseListMappings(request *data.JtBRequest, listChan <-chan map[string]inte
 		}
 	)
 	log.Printf("LIST SCHEMA: %#v", listSchema)
-	for m := range listChan {
-		for k, v := range m {
-			for _, lv := range v.([]interface{}) {
-				// TODO THIS USED THE IDFIELD NAME NOT THE ACTUAL ID BUT IM TOO CONFUSED WITH CHANNELS AND HOW TO ALSO PASS THE ID OVER
-				listMappings = append(listMappings, map[string]interface{}{"tableName": request.TableName, "idField": request.IdField, "Key": k, "Value": lv})
-			}
-		}
-	}
-	log.Printf("Finished Parsing all list mappings: %v", listMappings)
-	if len(listMappings) == 0 {
+	log.Printf("Finished Parsing all list mappings: %v", ListMappings)
+	if len(ListMappings) == 0 {
 		return
 	}
 	// PARSE OUR AVSC DATA THROUGH THE ENCODER
-	avroBytes, err := listSchema.WriteRecords(listMappings)
+	avroBytes, err := listSchema.WriteRecords(ListMappings)
 	if err != nil {
 		log.Printf("ERROR PARSING LIST MAPPINGS: %v", err.Error())
 		return
