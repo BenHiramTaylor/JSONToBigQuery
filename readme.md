@@ -1,7 +1,7 @@
 #  JSON To BigQuery Microservice
 This is a Go microservice designed to ingest raw unknown JSON data, parse it into a flat Avro structure, and then load it into a BigQuery Table.
 
-###Note: I am sure this can be done better, i will be improving over time, but this is my first GO project, and i am doing it to gain experience with the language.
+### Note: I am sure this can be done better, i will be improving over time, but this is my first GO project, and i am doing it to gain experience with the language.
 ## Overview
 Install by cloning down the repo and either using in your own docker/compose enviroment, or pushing to Kubernetes using the kubernetes.yaml file.
 ```shell
