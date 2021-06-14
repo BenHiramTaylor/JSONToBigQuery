@@ -56,7 +56,7 @@ Post the following JSON blob format to the endpoint:
     ]
 }
 ```
-#### Fields:
+#### Fields
 - ProjectID: Your GCP project that contains the BigQuery enviroment you wish to load to.
 - DatasetName: The name of the dataset, this will be created if it does not already exist.
 - TableName: The name of the table, this will be created if it does not already exist.
@@ -64,3 +64,6 @@ Post the following JSON blob format to the endpoint:
 - Data: A list of the raw JSON objects you wish to parse, one object equals one row in BigQuery, this will be parsed into a flat structure in the case of nested dictionaries, and lists will be mapped by the key and id into a different table.
   
 FIELDS CAN BE LEFT OUT, AND THEY WILL BE NULLED ON THE BigQuery SIDE AS SEEN BELOW.
+
+## Notes
+- If you are going to use the kubernetes.yaml and cloudbuild.yaml files then update the YOUR-PROJECT-NAME-HERE and YOUR-CLUSTER-NAME-HERE with the project the cluster is stored in and the cluster name for the CD deployment.
