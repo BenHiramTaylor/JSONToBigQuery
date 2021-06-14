@@ -16,14 +16,11 @@ Update the containers enviroment variables to map "GOOGLE_APPLICATION_CREDENTIAL
 Post the following JSON blob format to the endpoint:
 ```json
 {
-    "ProjectID": "big-swordfish-1120", // Your GCP project that contains the BigQuery enviroment you wish to load to.
-    "DatasetName": "TestDataSet", // The name of the dataset, this will be created if it does not already exist.
-    "TableName": "TestTable", // The name of the table, this will be created if it does not already exist.
-    "IdField": "pID", // The field in your raw parsed JSON that representes the "id" of your obeject, used later for de-duplication
-                      // and parsing lists into a different table.
-    "Data": [ // A list of the raw JSON objects you wish to parse, one object equals one row in BigQuery, this will be parsed into a
-              // flat structure in the case of nested dictionaries, and lists will be mapped by the key and id into a different table.
-              // FIELDS CAN BE LEFT OUT, AND THEY WILL BE NULLED ON THE BigQuery SIDE AS SEEN BELOW.
+    "ProjectID": "big-swordfish-1120", 
+    "DatasetName": "TestDataSet", 
+    "TableName": "TestTable", 
+    "IdField": "pID", 
+    "Data": [
         {
             "pID": 1,
             "ListMapTest":[
@@ -59,3 +56,11 @@ Post the following JSON blob format to the endpoint:
     ]
 }
 ```
+### Fields:
+- ProjectID: Your GCP project that contains the BigQuery enviroment you wish to load to.
+- DatasetName: The name of the dataset, this will be created if it does not already exist.
+- TableName: The name of the table, this will be created if it does not already exist.
+- IdField: The field in your raw parsed JSON that representes the "id" of your obeject, used later for de-duplication and parsing lists into a different table.
+- Data: A list of the raw JSON objects you wish to parse, one object equals one row in BigQuery, this will be parsed into a flat structure in the case of nested dictionaries, and lists will be mapped by the key and id into a different table.
+  
+FIELDS CAN BE LEFT OUT, AND THEY WILL BE NULLED ON THE BigQuery SIDE AS SEEN BELOW.
