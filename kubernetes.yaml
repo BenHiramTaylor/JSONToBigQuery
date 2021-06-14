@@ -5,6 +5,7 @@ metadata:
   labels:
     app: JSONToBQ
 spec:
+  replicas: 1 # CHANGE THIS TO THE AMOUNT OF CONTAINERS YOU WANT TO RUN
   selector:
     matchLabels:
       app: JSONToBQ
