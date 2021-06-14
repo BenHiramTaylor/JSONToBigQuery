@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: JSONToBigquery
+  labels:
+    app: JSONToBQ
+spec:
+  selector:
+    matchLabels:
+      app: JSONToBQ
+  template:
+    metadata:
+      labels:
+        app: JSONToBQ
+    spec:
+      volumes:
+        - name: google-cloud-key
+          secret:
+            secretName: masterkey
+      containers:
+        - name: JSONToBigQuery
+          image: gcr.io/YOUR-PROJECT-NAME-HERE/json-to-bigquery:latest
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - mountPath: /var/secrets/google
+              name: google-cloud-key
+          env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /var/secrets/google/key.json
+      restartPolicy: Always
