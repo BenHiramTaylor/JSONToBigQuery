@@ -15,8 +15,6 @@ import (
 	"github.com/hamba/avro/ocf"
 )
 
-type JSONFormattedData []map[string]interface{}
-
 type Field struct {
 	Name      string   `json:"name"`
 	FieldType []string `json:"type"`
@@ -34,18 +32,18 @@ func NewSchema(name string, namespace string) *Schema {
 }
 
 func NewField(name string, fieldType string) *Field {
-	arrFieldType := []string{fieldType, "null"}
-	return &Field{Name: name, FieldType: arrFieldType}
+	arrayFieldType := []string{fieldType, "null"}
+	return &Field{Name: name, FieldType: arrayFieldType}
 }
 
 func (s *Schema) AddField(FieldName, Type string) {
-	for i, f := range s.Fields {
-		if f.Name == FieldName {
-			for _, fv := range f.FieldType {
-				if fv == "null" {
+	for i, field := range s.Fields {
+		if field.Name == FieldName {
+			for _, fieldValue := range field.FieldType {
+				if fieldValue == "null" {
 					continue
 				}
-				if fv != Type {
+				if fieldValue != Type {
 					s.Fields[i] = *NewField(FieldName, "string")
 					return
 				} else {
@@ -60,46 +58,49 @@ func (s *Schema) AddField(FieldName, Type string) {
 	s.Fields = append(s.Fields, *nf)
 }
 
+// CHECKS IF A FLOAT IS AN INTEGER, THIS IS BECAUSE THE GOLAND
+// JSON PACKAGE UNMARSHALS ALL INTEGERS AS A FLOAT TYPE, EVEN IF THE VALUE IS A WHOLE NUMBER
 func isFloatInt(floatValue float64) bool {
 	return math.Mod(floatValue, 1.0) == 0
 }
 
+// GenerateSchemaFields Iterates over the records and generates schema, this also ensures that schema is up to date if new cols are added to the data
 func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{}, timestampFormat string) []string {
 	log.Printf("GOT TIMESTAMP FORMAT: %v", timestampFormat)
 	timestampFields := make([]string, len(FormattedRecords))
-	for _, rec := range FormattedRecords {
-		for k, v := range rec {
-			switch reflect.ValueOf(v).Kind() {
+	for _, record := range FormattedRecords {
+		for recordKey, recordValue := range record {
+			switch reflect.ValueOf(recordValue).Kind() {
 			case reflect.Int64:
-				s.AddField(k, "long")
+				s.AddField(recordKey, "long")
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
-				s.AddField(k, "int")
+				s.AddField(recordKey, "int")
 			case reflect.Bool:
-				s.AddField(k, "boolean")
+				s.AddField(recordKey, "boolean")
 			case reflect.Float32:
-				s.AddField(k, "float")
+				s.AddField(recordKey, "float")
 			case reflect.Float64:
 				// CHECK IF FLOAT IS ACTUALLY AN INT BECAUSE JSON UNMARSHALLS ALL NUMBERS AS FLOAT64
 				// IF IT IS, EDIT THE VALUE SO IT IS AN INT AND THEN USE INT SCHEMA
-				isInt := isFloatInt(v.(float64))
+				isInt := isFloatInt(recordValue.(float64))
 				if !isInt {
-					s.AddField(k, "double")
+					s.AddField(recordKey, "double")
 				} else {
-					newV := int(v.(float64))
-					rec[k] = newV
-					s.AddField(k, "int")
+					newValue := int(recordValue.(float64))
+					record[recordKey] = newValue
+					s.AddField(recordKey, "int")
 				}
 			case reflect.String:
 				// ATTEMPT TO CONVERT STRINGS TO time.Time objects, IF IT FAILS THEN ITS JUST STRING, ELSE MAKE IT A TIMESTAMP
-				newV, _ := v.(string)
-				timeVal, err := time.Parse(timestampFormat, newV)
+				newValue, _ := recordValue.(string)
+				timeValue, err := time.Parse(timestampFormat, newValue)
 				if err == nil {
 					// BIGQUERY TAKES UNIX MICROS SO WE GET NANO AND DIVIDE BY 1000
-					rec[k] = timeVal.UnixNano() / 1000
-					timestampFields = append(timestampFields, k)
-					s.AddField(k, "long")
+					record[recordKey] = timeValue.UnixNano() / 1000
+					timestampFields = append(timestampFields, recordKey)
+					s.AddField(recordKey, "long")
 				} else {
-					s.AddField(k, "string")
+					s.AddField(recordKey, "string")
 				}
 			}
 		}
@@ -107,23 +108,26 @@ func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{},
 	return timestampFields
 }
 
+// AddNulls This function will add nulls of the missing values that are in the
+// schema but not in the data this is because avro cant handle it without the
+// schema matching each object
 func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[string]interface{} {
 	var (
-		rawWg                 sync.WaitGroup
-		mx                    sync.Mutex
-		rChan                 = make(chan map[string]interface{}, len(FormattedRecords))
+		rawRecordWaitGroup    sync.WaitGroup
+		mutex                 sync.Mutex
+		resultsChan           = make(chan map[string]interface{}, len(FormattedRecords))
 		FormattedRecordsNulls []map[string]interface{}
 	)
 	for i := 0; i < 100; i++ {
-		rawWg.Add(1)
+		rawRecordWaitGroup.Add(1)
 		go func() {
-			defer rawWg.Done()
-			for rec := range rChan {
-				for _, f := range s.Fields {
+			defer rawRecordWaitGroup.Done()
+			for record := range resultsChan {
+				for _, field := range s.Fields {
 					exists := false
-					for k := range rec {
+					for recordKey := range record {
 						// IF SCHEMA KEY IS IN RECORD THEN BREAK, ELSE KEEP LOOKING IN REC
-						if k == f.Name {
+						if recordKey == field.Name {
 							exists = true
 							break
 						} else {
@@ -131,20 +135,20 @@ func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[strin
 						}
 					}
 					if !exists {
-						rec[f.Name] = nil
+						record[field.Name] = nil
 					}
 				}
-				mx.Lock()
-				FormattedRecordsNulls = append(FormattedRecordsNulls, rec)
-				mx.Unlock()
+				mutex.Lock()
+				FormattedRecordsNulls = append(FormattedRecordsNulls, record)
+				mutex.Unlock()
 			}
 		}()
 	}
 	for _, v := range FormattedRecords {
-		rChan <- v
+		resultsChan <- v
 	}
-	close(rChan)
-	rawWg.Wait()
+	close(resultsChan)
+	rawRecordWaitGroup.Wait()
 	log.Println("Added all nulls to data.")
 	return FormattedRecordsNulls
 }
@@ -158,25 +162,27 @@ func (s *Schema) FromJSON(fileReader io.Reader) error {
 }
 
 func (s *Schema) ToFile(dataset string) error {
-	JSONb, err := s.ToJSON()
+	jsonBytes, err := s.ToJSON()
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", dataset, s.Namespace), JSONb, 0644)
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", dataset, s.Namespace), jsonBytes, 0644)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+// WriteRecords This function writes the records passed to the an avro file
+// using the schema.
 func (s *Schema) WriteRecords(records []map[string]interface{}) ([]byte, error) {
-	w := &bytes.Buffer{}
+	bytesBuffer := &bytes.Buffer{}
 	schemaBytes, err := s.ToJSON()
 	if err != nil {
 		return nil, err
 	}
 	ocf.WithCodec(ocf.Snappy)
-	enc, err := ocf.NewEncoder(string(schemaBytes), w)
+	enc, err := ocf.NewEncoder(string(schemaBytes), bytesBuffer)
 	if err != nil {
 		log.Printf("ERROR CREATING ENCODER: %v", err.Error())
 		return nil, err
@@ -190,5 +196,5 @@ func (s *Schema) WriteRecords(records []map[string]interface{}) ([]byte, error) 
 	if err = enc.Flush(); err != nil {
 		return nil, err
 	}
-	return w.Bytes(), nil
+	return bytesBuffer.Bytes(), nil
 }

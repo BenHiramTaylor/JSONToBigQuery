@@ -7,11 +7,11 @@ import (
 )
 
 type Response struct {
-	Status  string      `json:"status"`
-	Content interface{} `json:"content"`
+	Status  string `json:"status"`
+	Content string `json:"content"`
 }
 
-func NewResponse(status string, content interface{}) *Response {
+func NewResponse(status, content string) *Response {
 	return &Response{Status: status, Content: content}
 }
 
@@ -19,13 +19,13 @@ func (r *Response) ToJSON() ([]byte, error) {
 	return json.Marshal(r)
 }
 
-func ErrorWithJSON(w http.ResponseWriter, message interface{}, httpErrorCode int) {
-	r := NewResponse("error", message)
-	rJson, err := r.ToJSON()
+func RespondWithJSON(w http.ResponseWriter, status, message string, httpErrorCode int) {
+	r := NewResponse(status, message)
+	responseJSON, err := r.ToJSON()
 	if err != nil {
 		log.Fatalf("Could not marshal JSON: %#v", r)
 	}
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(httpErrorCode)
-	w.Write(rJson)
+	w.Write(responseJSON)
 }

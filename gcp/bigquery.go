@@ -36,16 +36,16 @@ func updateTableSchema(client *bigquery.Client, datasetID, tableID string, times
 	var newSchema = bigquery.Schema{}
 	ctx := context.Background()
 	tableRef := client.Dataset(datasetID).Table(tableID)
-	meta, err := tableRef.Metadata(ctx)
+	tableMetadata, err := tableRef.Metadata(ctx)
 	if err != nil {
 		return err
 	}
-	newSchema = append(meta.Schema)
-	for _, af := range sch.Fields {
+	newSchema = append(tableMetadata.Schema)
+	for _, avroField := range sch.Fields {
 		exists := false
-		afType := ""
-		for _, tf := range newSchema {
-			if af.Name == tf.Name {
+		avroFieldType := ""
+		for _, tableField := range newSchema {
+			if avroField.Name == tableField.Name {
 				exists = true
 				break
 			} else {
@@ -53,24 +53,24 @@ func updateTableSchema(client *bigquery.Client, datasetID, tableID string, times
 			}
 		}
 		if !exists {
-			for _, v := range af.FieldType {
+			for _, v := range avroField.FieldType {
 				if v == "null" {
 					continue
 				} else {
-					afType = v
+					avroFieldType = v
 				}
 			}
 			newSchema = append(newSchema,
-				&bigquery.FieldSchema{Name: af.Name, Type: bqSchemaMap[afType]},
+				&bigquery.FieldSchema{Name: avroField.Name, Type: bqSchemaMap[avroFieldType]},
 			)
 		}
 	}
-	for i, fs := range newSchema {
-		for _, tk := range timestampFields {
-			if tk != fs.Name {
+	for i, fieldSchema := range newSchema {
+		for _, timestampKey := range timestampFields {
+			if timestampKey != fieldSchema.Name {
 				continue
 			} else {
-				newSchema[i] = &bigquery.FieldSchema{Name: fs.Name, Type: bigquery.TimestampFieldType}
+				newSchema[i] = &bigquery.FieldSchema{Name: fieldSchema.Name, Type: bigquery.TimestampFieldType}
 			}
 		}
 	}
@@ -78,7 +78,7 @@ func updateTableSchema(client *bigquery.Client, datasetID, tableID string, times
 	update := bigquery.TableMetadataToUpdate{
 		Schema: newSchema,
 	}
-	if _, err := tableRef.Update(ctx, update, meta.ETag); err != nil {
+	if _, err := tableRef.Update(ctx, update, tableMetadata.ETag); err != nil {
 		return err
 	}
 	return nil

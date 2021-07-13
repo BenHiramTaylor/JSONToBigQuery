@@ -12,7 +12,7 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 )
 
-func ParseRequest(request *data.JtBRequest) (Schema, []map[string]interface{}, []map[string]interface{}, []string, error) {
+func ParseRequest(request *data.JTBRequest) (Schema, []map[string]interface{}, []map[string]interface{}, []string, error) {
 	// GENERATE VARS
 	var (
 		parseWg      sync.WaitGroup
