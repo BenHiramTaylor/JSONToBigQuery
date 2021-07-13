@@ -23,6 +23,7 @@ func (j *JTBRequest) ExecuteQuery() error {
 	if j.Query != "" {
 		ctx := context.Background()
 		client, err := bigquery.NewClient(ctx, j.ProjectID)
+		defer client.Close()
 		if err != nil {
 			return err
 		}

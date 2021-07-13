@@ -64,6 +64,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 
 	// CREATE A STORAGE CLIENT TO TEST THE AUTH
 	storageClient, err := gcp.GetStorageClient(data.CredsFilePath)
+	defer storageClient.Close()
 	if err != nil {
 		log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
 		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
@@ -162,6 +163,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 
 	// CREATING BQ CLIENT
 	bigqueryClient, err := gcp.GetBQClient(data.CredsFilePath, jtb.ProjectID)
+	defer bigqueryClient.Close()
 	if err != nil {
 		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
 		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
@@ -248,6 +250,7 @@ func parseListMappings(request *data.JTBRequest, ListMappings []map[string]inter
 	go func() {
 		// CREATE A STORAGE CLIENT TO TEST THE AUTH
 		storageClient, err := gcp.GetStorageClient(data.CredsFilePath)
+		defer storageClient.Close()
 		if err != nil {
 			log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
 			return
@@ -267,6 +270,7 @@ func parseListMappings(request *data.JTBRequest, ListMappings []map[string]inter
 
 	// CREATING BQ CLIENT
 	bigqueryClient, err := gcp.GetBQClient(data.CredsFilePath, request.ProjectID)
+	defer bigqueryClient.Close()
 	if err != nil {
 		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
 		return
