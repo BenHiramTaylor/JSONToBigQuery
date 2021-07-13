@@ -11,7 +11,7 @@ type JtBRequest struct {
 	ProjectID       string                   `json:"ProjectID" validate:"required"`
 	DatasetName     string                   `json:"DatasetName" validate:"required"`
 	TableName       string                   `json:"TableName" validate:"required"`
-	IdField         string                   `json:"IdField" validate:"required"`
+	Query           string                   `json:"Query"`
 	TimestampFormat string                   `json:"TimestampFormat"`
 	Data            []map[string]interface{} `json:"Data" validate:"required"`
 }
