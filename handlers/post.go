@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"cloud.google.com/go/bigquery"
 	"github.com/BenHiramTaylor/JSONToBigQuery/avro"
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 	"github.com/BenHiramTaylor/JSONToBigQuery/gcp"
@@ -187,7 +189,29 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	listMapWg.Wait()
-	// THIS IS TEST LOGIC TO RETURN SCHEMA
+
+	// RUN QUERY IF NOT BLANK
+	if jtaData.Query != "" {
+		ctx := context.Background()
+		client, err := bigquery.NewClient(ctx, jtaData.ProjectID)
+		if err != nil {
+			data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		q := client.Query(jtaData.Query)
+		q.Location = "US"
+		job, err := q.Run(ctx)
+		if err != nil {
+			data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, err = job.Wait(ctx)
+		if err != nil {
+			data.ErrorWithJSON(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	// RETURN CONFIRMATION RESPONSE
 	resp := data.NewResponse("Success", fmt.Sprintf("Successfully Inserted %v number of rows into %v.%v.%v.", len(formattedData), jtaData.ProjectID, jtaData.DatasetName, jtaData.TableName))
 	respJSON, err := resp.ToJSON()
 	if err != nil {
