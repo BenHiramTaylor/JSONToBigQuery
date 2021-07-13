@@ -20,6 +20,7 @@ Post the following JSON blob format to the endpoint:
     "DatasetName": "TestDataSet", 
     "TableName": "TestTable", 
     "IdField": "pID", 
+    "Query": "CREATE OR REPLACE TABLE TABLENAME AS (SELECT DISTINCT * FROM TABLENAME)",
     "Data": [
         {
             "pID": 1,
@@ -61,6 +62,7 @@ Post the following JSON blob format to the endpoint:
 - DatasetName: The name of the dataset, this will be created if it does not already exist.
 - TableName: The name of the table, this will be created if it does not already exist.
 - IdField: The field in your raw parsed JSON that representes the "id" of your obeject, used later for de-duplication and parsing lists into a different table.
+- Query: A query to run immediatly after the load, can be for de-duplication, merging results or frankly anything you need, Leave out of body to run no query
 - Data: A list of the raw JSON objects you wish to parse, one object equals one row in BigQuery, this will be parsed into a flat structure in the case of nested dictionaries, and lists will be mapped by the key and id into a different table.
   
 FIELDS CAN BE LEFT OUT, AND THEY WILL BE NULLED ON THE BigQuery SIDE AS SEEN BELOW.
