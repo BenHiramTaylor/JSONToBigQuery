@@ -151,12 +151,3 @@ func LoadAvroToTable(client *bigquery.Client, bucketName, datasetID, tableID, av
 	}
 	return nil
 }
-
-// func DeDuplicate(client *bigquery.Client, projectID, datasetID, tableID, queryType,idField string) error {
-// 	ctx := context.Background()
-// 	if queryType == "Basic" {
-// 		query := fmt.Sprintf("CREATE OR REPLACE TABLE `%v.%v.%v` AS (SELECT DISTINCT * FROM `%v.%v.%v`)",projectID,datasetID,tableID,projectID,datasetID,tableID)
-// 	} else if queryType == "ROWNUMBER"{
-//
-// 	}
-// }
