@@ -7,4 +7,4 @@ services:
     environment:
       - GOOGLE_APPLICATION_CREDENTIALS=/var/secrets/google/key.json
     volumes:
-    - C:/Users/btayl/Documents/Third Bridge/CONFIGS/bigquery-key.json:/var/secrets/google/key.json
+    - /var/secrets/google/key.json:/var/secrets/google/key.json
