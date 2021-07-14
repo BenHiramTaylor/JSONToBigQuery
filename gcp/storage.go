@@ -72,10 +72,9 @@ func CreateBucket(client *storage.Client, projectID, bucketName string) error {
 		if e, ok := err.(*googleapi.Error); ok {
 			if e.Code != 409 {
 				log.Printf("ERROR CREATING BUCKET: %v", err.Error())
-				return nil
+				return err
 			}
 		}
-		return err
 	}
 	return nil
 }
