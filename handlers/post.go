@@ -188,15 +188,15 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// WAIT FOR LISTMAPPINGS TO BE PARSED
-	listMappingsWg.Wait()
-
 	// RUN QUERY IF NOT BLANK
 	err = jtb.ExecuteQuery()
 	if err != nil {
 		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// WAIT FOR LISTMAPPINGS TO BE PARSED
+	listMappingsWg.Wait()
 
 	// RETURN CONFIRMATION RESPONSE
 	data.RespondWithJSON(
