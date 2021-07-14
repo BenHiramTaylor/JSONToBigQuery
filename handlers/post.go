@@ -11,11 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/storage"
 	"github.com/BenHiramTaylor/JSONToBigQuery/avro"
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 	"github.com/BenHiramTaylor/JSONToBigQuery/gcp"
 	"github.com/go-playground/validator"
-	"google.golang.org/api/googleapi"
 )
 
 func JtBPost(w http.ResponseWriter, r *http.Request) {
@@ -46,6 +47,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		avroFile       = fmt.Sprintf("%v.avro", jtb.TableName)
 		avroFiles      = []string{avscFile, jsonFile, avroFile}
 		fileUploadWg   sync.WaitGroup
+		fileDumpWg     sync.WaitGroup
 		listMappingsWg sync.WaitGroup
 		ListMappings   = make([]map[string]interface{}, 0)
 	)
@@ -64,7 +66,6 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 
 	// CREATE A STORAGE CLIENT TO TEST THE AUTH
 	storageClient, err := gcp.GetStorageClient(data.CredsFilePath)
-	defer storageClient.Close()
 	if err != nil {
 		log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
 		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
@@ -74,34 +75,35 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		data.RespondWithJSON(w, "error", "Authentication JSON passed invalid.", http.StatusBadRequest)
 		return
 	}
+	defer storageClient.Close()
+
+	// CREATING BQ CLIENT
+	bigqueryClient, err := gcp.GetBQClient(data.CredsFilePath, jtb.ProjectID)
+	if err != nil {
+		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
+		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if bigqueryClient == nil {
+		data.RespondWithJSON(w, "error", "Authentication JSON passed invalid.", http.StatusBadRequest)
+		return
+	}
+	defer bigqueryClient.Close()
+
 	// CREATE BUCKET IF NOT BEEN MADE BEFORE
 	err = gcp.CreateBucket(storageClient, jtb.ProjectID, data.BucketName)
 	if err != nil {
-		if e, ok := err.(*googleapi.Error); ok {
-			if e.Code != 409 {
-				log.Printf("ERROR CREATING BUCKET: %v", err.Error())
-				data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
+		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	// DOWNLOAD OR CREATE FILES NEEDED FROM GCS
-	for _, v := range avroFiles {
-		// WE NEED TO CREATE A NEW AVRO FOR THE LOAD NOT RELOAD SAME DATA
-		if v == avroFile {
-			continue
-		}
-		err = gcp.DownloadBlobFromStorage(storageClient, data.BucketName, jtb.DatasetName, v)
-		if err != nil {
-			if err.Error() == "storage: object doesn't exist" {
-				continue
-			}
-			data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
-			log.Printf("ERROR DOWNLOADING BLOB FROM GCP: %v", err.Error())
-			return
-		}
+	// DOWNLOADS ALL THE FILES NEEDED FROM GCS IF THEY EXIST
+	err = downloadFiles(storageClient, jtb.DatasetName, avroFiles)
+	if err != nil {
+		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
+		return
 	}
+
 	// BEGIN PARSING THE REQUEST USING THE AVRO MODULE, THIS FORMATS DATA AND CREATES SCHEMA
 	s, formattedData, ListMappings, timestampFields, err := avro.ParseRequest(jtb)
 	if err != nil {
@@ -112,15 +114,9 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	// START GOROUTINE FOR PARSING LIST MAPPINGS
 	listMappingsWg.Add(1)
 	go func() {
-		parseListMappings(jtb, ListMappings)
+		parseListMappings(storageClient, bigqueryClient, jtb, ListMappings)
 		listMappingsWg.Done()
 	}()
-
-	// DUMP THE AVSC TO FILE
-	err = s.ToFile(jtb.DatasetName)
-	if err != nil {
-		log.Printf("ERROR DUMPING SCHEMA TO AVSC FILE: %v", err.Error())
-	}
 
 	// PARSE OUR AVSC DATA THROUGH THE ENCODER
 	avroBytes, err := s.WriteRecords(formattedData)
@@ -129,50 +125,51 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// DUMP THE AVSC TO FILE
+	fileDumpWg.Add(1)
+	go func() {
+		err = s.ToFile(jtb.DatasetName)
+		if err != nil {
+			log.Printf("ERROR DUMPING SCHEMA TO AVSC FILE: %v", err.Error())
+		}
+		fileDumpWg.Done()
+	}()
+
 	// DUMP THE FORMATTED RECORDS TO AVRO
-	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", jtb.DatasetName, avroFile), avroBytes, 0644)
-	if err != nil {
-		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
-		return
-	}
+	fileDumpWg.Add(1)
+	go func() {
+		err = ioutil.WriteFile(fmt.Sprintf("%v/%v", jtb.DatasetName, avroFile), avroBytes, 0644)
+		if err != nil {
+			data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fileDumpWg.Done()
+	}()
 
-	// DUMP THE RAW JSON TOO
-	jsonData, err := json.Marshal(formattedData)
-	if err != nil {
-		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
-		return
-	}
-	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", jtb.DatasetName, jsonFile), jsonData, 0644)
-	if err != nil {
-		log.Printf("ERROR DUMPING FORMATTED JSON TO FILE: %v", err.Error())
-		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// WRITE THE FORMATTED DATA TO A JSON FILE
+	fileDumpWg.Add(1)
+	go func() {
+		err = writeRecordsToFile(formattedData, jtb.DatasetName, jsonFile)
+		if err != nil {
+			data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fileDumpWg.Done()
+	}()
 
+	// WAIT FOR THE CONCURRENT FILE DUMPING TO FINISH
+	fileDumpWg.Wait()
+
+	// UPLOAD ALL THE FILES TO GCS
 	fileUploadWg.Add(1)
 	go func() {
-		// UPLOAD FILES TO BUCKET
-		for _, f := range avroFiles {
-			err = gcp.UploadBlobToStorage(storageClient, data.BucketName, jtb.DatasetName, f)
-			if err != nil {
-				log.Printf("ERROR UPLOADING AVRO FILE: %v %v", f, err.Error())
-			}
+		err = uploadFiles(storageClient, jtb.DatasetName, avroFiles)
+		if err != nil {
+			data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
+			return
 		}
 		fileUploadWg.Done()
 	}()
-
-	// CREATING BQ CLIENT
-	bigqueryClient, err := gcp.GetBQClient(data.CredsFilePath, jtb.ProjectID)
-	defer bigqueryClient.Close()
-	if err != nil {
-		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
-		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if bigqueryClient == nil {
-		data.RespondWithJSON(w, "error", "Authentication JSON passed invalid.", http.StatusBadRequest)
-		return
-	}
 
 	// CREATE TABLE AND ADD ANY NEW SCHEMA USING SCHEMA FIELD NAMES
 	err = gcp.PrepareTable(bigqueryClient, jtb.DatasetName, jtb.TableName, timestampFields, s)
@@ -181,7 +178,9 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// WAIT FOR THE FILE UPLOAD TO FINISH IF NOT DONE
 	fileUploadWg.Wait()
+
 	// LOAD THE DATA FROM GCS
 	err = gcp.LoadAvroToTable(bigqueryClient, data.BucketName, jtb.DatasetName, jtb.TableName, avroFile)
 	if err != nil {
@@ -189,6 +188,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// WAIT FOR LISTMAPPINGS TO BE PARSED
 	listMappingsWg.Wait()
 
 	// RUN QUERY IF NOT BLANK
@@ -197,6 +197,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		data.RespondWithJSON(w, "error", err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	// RETURN CONFIRMATION RESPONSE
 	data.RespondWithJSON(
 		w,
@@ -204,6 +205,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("Successfully Inserted %v number of rows into %v.%v.%v.", len(formattedData), jtb.ProjectID, jtb.DatasetName, jtb.TableName),
 		http.StatusOK,
 	)
+
 	// DELETE THE FOLDER WHEN DONE
 	err = os.Remove(jtb.DatasetName)
 	if err != nil {
@@ -212,7 +214,9 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 	log.Println("Completed request")
 }
 
-func parseListMappings(request *data.JTBRequest, ListMappings []map[string]interface{}) {
+// If there are list mappings to parse, it will create the avro files, and load
+// them to a generic ListMappings table in the dataset
+func parseListMappings(storageClient *storage.Client, bigqueryClient *bigquery.Client, request *data.JTBRequest, ListMappings []map[string]interface{}) {
 	var (
 		storageWg  sync.WaitGroup
 		listSchema = avro.Schema{
@@ -248,18 +252,6 @@ func parseListMappings(request *data.JTBRequest, ListMappings []map[string]inter
 
 	storageWg.Add(1)
 	go func() {
-		// CREATE A STORAGE CLIENT TO TEST THE AUTH
-		storageClient, err := gcp.GetStorageClient(data.CredsFilePath)
-		defer storageClient.Close()
-		if err != nil {
-			log.Printf("ERROR CREATING GCS CLIENT: %v", err.Error())
-			return
-		}
-		if storageClient == nil {
-			log.Printf("ERROR CREATING GCS CLIENT: CLIENT IS NIL IN LISTMAPPINGS")
-			return
-		}
-
 		// UPLOAD FILE TO BUCKET
 		err = gcp.UploadBlobToStorage(storageClient, data.BucketName, request.DatasetName, listSchema.Name)
 		if err != nil {
@@ -267,30 +259,63 @@ func parseListMappings(request *data.JTBRequest, ListMappings []map[string]inter
 		}
 		storageWg.Done()
 	}()
-
-	// CREATING BQ CLIENT
-	bigqueryClient, err := gcp.GetBQClient(data.CredsFilePath, request.ProjectID)
-	defer bigqueryClient.Close()
-	if err != nil {
-		log.Printf("ERROR CREATING BQ CLIENT: %v", err.Error())
-		return
-	}
-	if bigqueryClient == nil {
-		log.Printf("ERROR CREATING BQ CLIENT: CLIENT IS NIL IN LISTMAPPINGS")
-		return
-	}
-
-	storageWg.Wait()
 	// CREATE TABLE AND ADD ANY NEW SCHEMA USING SCHEMA FIELD NAMES
 	err = gcp.PrepareTable(bigqueryClient, request.DatasetName, "ListMappings", []string{}, listSchema)
 	if err != nil {
 		log.Println("ERROR PREPARING TABLE: ListMappings")
 		return
 	}
+	storageWg.Wait()
 	// LOAD THE DATA FROM GCS
 	err = gcp.LoadAvroToTable(bigqueryClient, data.BucketName, request.DatasetName, "ListMappings", listSchema.Name)
 	if err != nil {
 		log.Printf("ERROR LOADING LISTMAPPINGS TABLE: %v", err.Error())
 		return
 	}
+}
+
+func downloadFiles(storageClient *storage.Client, dataSetName string, avroFiles []string) error {
+	// DOWNLOAD OR CREATE FILES NEEDED FROM GCS
+	for _, v := range avroFiles {
+		// WE NEED TO CREATE A NEW AVRO FOR THE LOAD NOT RELOAD SAME DATA
+		if strings.Contains(v, ".avro") {
+			continue
+		}
+		err := gcp.DownloadBlobFromStorage(storageClient, data.BucketName, dataSetName, v)
+		if err != nil {
+			if err.Error() == "storage: object doesn't exist" {
+				continue
+			}
+			log.Printf("ERROR DOWNLOADING BLOB FROM GCP: %v", err.Error())
+			return err
+		}
+	}
+	return nil
+}
+
+func uploadFiles(storageClient *storage.Client, dataSetName string, avroFiles []string) error {
+	// UPLOAD FILES TO BUCKET
+	for _, f := range avroFiles {
+		err := gcp.UploadBlobToStorage(storageClient, data.BucketName, dataSetName, f)
+		if err != nil {
+			log.Printf("ERROR UPLOADING AVRO FILE: %v %v", f, err.Error())
+			return err
+		}
+	}
+	return nil
+}
+
+func writeRecordsToFile(formattedData []map[string]interface{}, dataSetName, jsonFile string) error {
+	// DUMP THE RAW JSON TOO
+	jsonData, err := json.Marshal(formattedData)
+	if err != nil {
+		return err
+	}
+	// WRITE THE JSON TO A FILE
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", dataSetName, jsonFile), jsonData, 0644)
+	if err != nil {
+		log.Printf("ERROR DUMPING FORMATTED JSON TO FILE: %v", err.Error())
+		return err
+	}
+	return nil
 }

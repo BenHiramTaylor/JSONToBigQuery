@@ -15,11 +15,13 @@ import (
 	"github.com/hamba/avro/ocf"
 )
 
+// Field a field object, includes name of field and type of field
 type Field struct {
 	Name      string   `json:"name"`
 	FieldType []string `json:"type"`
 }
 
+// Schema a schema obejct, represents avro schema
 type Schema struct {
 	Type      string  `json:"type"`
 	Name      string  `json:"name"`
@@ -27,15 +29,18 @@ type Schema struct {
 	Fields    []Field `json:"fields"`
 }
 
+// NewSchema Returns a blank schema object
 func NewSchema(name string, namespace string) *Schema {
 	return &Schema{Type: "record", Name: name, Namespace: namespace}
 }
 
+// NewField Creates a new field object and returns it, used for overwriting
 func NewField(name string, fieldType string) *Field {
 	arrayFieldType := []string{fieldType, "null"}
 	return &Field{Name: name, FieldType: arrayFieldType}
 }
 
+// AddField Adds a field to the schema, allowing it to be nulled
 func (s *Schema) AddField(FieldName, Type string) {
 	for i, field := range s.Fields {
 		if field.Name == FieldName {
@@ -64,7 +69,8 @@ func isFloatInt(floatValue float64) bool {
 	return math.Mod(floatValue, 1.0) == 0
 }
 
-// GenerateSchemaFields Iterates over the records and generates schema, this also ensures that schema is up to date if new cols are added to the data
+// GenerateSchemaFields Iterates over the records and generates schema, this
+// also ensures that schema is up to date if new cols are added to the data
 func (s *Schema) GenerateSchemaFields(FormattedRecords []map[string]interface{}, timestampFormat string) []string {
 	log.Printf("GOT TIMESTAMP FORMAT: %v", timestampFormat)
 	timestampFields := make([]string, len(FormattedRecords))
@@ -153,14 +159,17 @@ func (s *Schema) AddNulls(FormattedRecords []map[string]interface{}) []map[strin
 	return FormattedRecordsNulls
 }
 
+// ToJSON Returns the schema struct in a JSON byte slice
 func (s *Schema) ToJSON() ([]byte, error) {
 	return json.Marshal(s)
 }
 
+// FromJSON Loads a JSON file into the schema struct
 func (s *Schema) FromJSON(fileReader io.Reader) error {
 	return json.NewDecoder(fileReader).Decode(&s)
 }
 
+// ToFile Dumps the schema to json then writes that to a file
 func (s *Schema) ToFile(dataset string) error {
 	jsonBytes, err := s.ToJSON()
 	if err != nil {

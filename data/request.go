@@ -9,6 +9,9 @@ import (
 	"github.com/go-playground/validator"
 )
 
+// JTBRequest Request object, represents the request that you parse to this
+// service, validate:"required" tags mean the value has to be present in the
+// body.
 type JTBRequest struct {
 	ProjectID       string                   `json:"ProjectID" validate:"required"`
 	DatasetName     string                   `json:"DatasetName" validate:"required"`
@@ -19,6 +22,7 @@ type JTBRequest struct {
 	Data            []map[string]interface{} `json:"Data" validate:"required"`
 }
 
+// ExecuteQuery Executes the query in the request assuming it is not blank
 func (j *JTBRequest) ExecuteQuery() error {
 	if j.Query != "" {
 		ctx := context.Background()
@@ -43,6 +47,7 @@ func (j *JTBRequest) ExecuteQuery() error {
 	}
 }
 
+// NewJTB Constructor function, returns blank JTBRequest to have json loaded into it
 func NewJTB() *JTBRequest {
 	return new(JTBRequest)
 }
@@ -53,11 +58,8 @@ func (j *JTBRequest) Validate() error {
 	return v.Struct(j)
 }
 
+// LoadFromJSON Loads the struct values from a http.request body
 func (j *JTBRequest) LoadFromJSON(r *http.Request) error {
 	defer r.Body.Close()
 	return json.NewDecoder(r.Body).Decode(&j)
-}
-
-func (j *JTBRequest) DumpToJSON() ([]byte, error) {
-	return json.Marshal(j)
 }

@@ -12,6 +12,8 @@ import (
 	"github.com/BenHiramTaylor/JSONToBigQuery/data"
 )
 
+// ParseRequest Parses the request object, maps schema, returns formatted
+// records, a slice of all the timestamp fields and listMappings
 func ParseRequest(request *data.JTBRequest) (Schema, []map[string]interface{}, []map[string]interface{}, []string, error) {
 	// GENERATE VARS
 	var (
@@ -97,6 +99,9 @@ func ParseRequest(request *data.JTBRequest) (Schema, []map[string]interface{}, [
 	log.Printf("FULL SCHEMA: %#v", schema)
 	return *schema, ParsedRecsWithNulls, ListMappings, timestampFields, nil
 }
+
+// ParseRecord Recursivly parses a record flattening nested dics and parsing out
+// all lists
 func ParseRecord(rec map[string]interface{}, fullKey string, formattedRec map[string]interface{}, fChan chan<- map[string]interface{}, TableName, IdField string, ListMapChan chan<- map[string]interface{}) {
 	sendOnChan := true
 	// FOR KEY VAL IN THE JSON BLOB

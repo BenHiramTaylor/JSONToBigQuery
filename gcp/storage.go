@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
+// GetStorageClient Constructor func returns a Storage Client
 func GetStorageClient(credsFilePath string) (*storage.Client, error) {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx, option.WithCredentialsFile(credsFilePath))
@@ -21,6 +23,8 @@ func GetStorageClient(credsFilePath string) (*storage.Client, error) {
 	return client, nil
 }
 
+// DownloadBlobFromStorage Downloads a file from Google storage and writes it to
+// a local file of the same name
 func DownloadBlobFromStorage(client *storage.Client, bucketName, dataset, fileName string) error {
 	blobName := fmt.Sprintf("%v/%v", dataset, fileName)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
@@ -41,6 +45,7 @@ func DownloadBlobFromStorage(client *storage.Client, bucketName, dataset, fileNa
 	return nil
 }
 
+// UploadBlobToStorage Uploads a file to Google storage
 func UploadBlobToStorage(client *storage.Client, bucketName, dataset, fileName string) error {
 	blobName := fmt.Sprintf("%v/%v", dataset, fileName)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
@@ -59,10 +64,17 @@ func UploadBlobToStorage(client *storage.Client, bucketName, dataset, fileName s
 	return nil
 }
 
+// CreateBucket Creates a Google storage bucket if it does not already exist
 func CreateBucket(client *storage.Client, projectID, bucketName string) error {
 	ctx := context.Background()
 	bkt := client.Bucket(bucketName)
 	if err := bkt.Create(ctx, projectID, nil); err != nil {
+		if e, ok := err.(*googleapi.Error); ok {
+			if e.Code != 409 {
+				log.Printf("ERROR CREATING BUCKET: %v", err.Error())
+				return nil
+			}
+		}
 		return err
 	}
 	return nil

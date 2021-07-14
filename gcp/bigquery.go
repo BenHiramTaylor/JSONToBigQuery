@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	// Map of string field representations to bigquery field types
 	bqSchemaMap = map[string]bigquery.FieldType{
 		"string":  bigquery.StringFieldType,
 		"int":     bigquery.IntegerFieldType,
@@ -22,6 +23,7 @@ var (
 	}
 )
 
+// GetBQClient Constructor func returns a Bigquery Client
 func GetBQClient(credsPath string, projectID string) (*bigquery.Client, error) {
 	ctx := context.Background()
 	client, err := bigquery.NewClient(ctx, projectID, option.WithCredentialsFile(credsPath))
@@ -32,6 +34,7 @@ func GetBQClient(credsPath string, projectID string) (*bigquery.Client, error) {
 	return client, nil
 }
 
+// Takes schema and updates a table to ensure the schema is up to date
 func updateTableSchema(client *bigquery.Client, datasetID, tableID string, timestampFields []string, sch avro.Schema) error {
 	var newSchema = bigquery.Schema{}
 	ctx := context.Background()
@@ -84,6 +87,7 @@ func updateTableSchema(client *bigquery.Client, datasetID, tableID string, times
 	return nil
 }
 
+// Creates a dataset and then table if it doesnt already exist
 func createTable(client *bigquery.Client, datasetID, tableID string) error {
 	ctx := context.Background()
 	err := client.Dataset(datasetID).Create(ctx, &bigquery.DatasetMetadata{Name: datasetID})
@@ -105,6 +109,7 @@ func createTable(client *bigquery.Client, datasetID, tableID string) error {
 	return nil
 }
 
+// Function used only in this package, used to retunr the schema of a table
 func getTableSchema(client *bigquery.Client, datasetID, tableID string) (bigquery.Schema, error) {
 	ctx := context.Background()
 	tableRef := client.Dataset(datasetID).Table(tableID)
@@ -115,6 +120,8 @@ func getTableSchema(client *bigquery.Client, datasetID, tableID string) (bigquer
 	return meta.Schema, nil
 }
 
+// PrepareTable Creates a table if it doesnt exist, then updates the schema to
+// match the avro schema parsed in
 func PrepareTable(client *bigquery.Client, datasetID, tableID string, timestampFields []string, sch avro.Schema) error {
 	err := createTable(client, datasetID, tableID)
 	if err != nil {
@@ -127,6 +134,7 @@ func PrepareTable(client *bigquery.Client, datasetID, tableID string, timestampF
 	return nil
 }
 
+// LoadAvroToTable Loads avro data into a BQ table from google cloud storage reference
 func LoadAvroToTable(client *bigquery.Client, bucketName, datasetID, tableID, avroFile string) error {
 	tableSchema, err := getTableSchema(client, datasetID, tableID)
 	if err != nil {
