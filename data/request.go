@@ -26,6 +26,7 @@ type JTBRequest struct {
 func (j *JTBRequest) ExecuteQuery() error {
 	if j.Query != "" {
 		ctx := context.Background()
+		defer ctx.Done()
 		client, err := bigquery.NewClient(ctx, j.ProjectID)
 		defer client.Close()
 		if err != nil {

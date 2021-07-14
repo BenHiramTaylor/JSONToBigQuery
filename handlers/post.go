@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -219,6 +220,7 @@ func JtBPost(w http.ResponseWriter, r *http.Request) {
 func parseListMappings(storageClient *storage.Client, bigqueryClient *bigquery.Client, request *data.JTBRequest, ListMappings []map[string]interface{}) {
 	var (
 		storageWg  sync.WaitGroup
+		ctx        = context.Background()
 		listSchema = avro.Schema{
 			Name:      fmt.Sprintf("%v.ListMappings.avro", request.TableName),
 			Namespace: fmt.Sprintf("%v.ListMappings.avsc", request.TableName),
@@ -231,6 +233,7 @@ func parseListMappings(storageClient *storage.Client, bigqueryClient *bigquery.C
 			},
 		}
 	)
+	defer ctx.Done()
 	log.Printf("LIST SCHEMA: %#v", listSchema)
 	log.Printf("Finished Parsing all list mappings: %v", ListMappings)
 	if len(ListMappings) == 0 {
@@ -270,6 +273,19 @@ func parseListMappings(storageClient *storage.Client, bigqueryClient *bigquery.C
 	err = gcp.LoadAvroToTable(bigqueryClient, data.BucketName, request.DatasetName, "ListMappings", listSchema.Name)
 	if err != nil {
 		log.Printf("ERROR LOADING LISTMAPPINGS TABLE: %v", err.Error())
+		return
+	}
+	tableName := fmt.Sprintf("%v.%v.ListMappings", request.ProjectID, request.DatasetName)
+	q := bigqueryClient.Query(fmt.Sprintf("CREATE OR REPLACE TABLE `%v` AS (SELECT DISTINCT * FROM `%v`)", tableName, tableName))
+	q.Location = "US"
+	job, err := q.Run(ctx)
+	if err != nil {
+		log.Println("Failed to run ListMappings De-duplicate")
+		return
+	}
+	_, err = job.Wait(ctx)
+	if err != nil {
+		log.Println("Failed to run ListMappings De-duplicate")
 		return
 	}
 }

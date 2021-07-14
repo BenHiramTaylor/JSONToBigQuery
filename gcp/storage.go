@@ -16,6 +16,7 @@ import (
 // GetStorageClient Constructor func returns a Storage Client
 func GetStorageClient(credsFilePath string) (*storage.Client, error) {
 	ctx := context.Background()
+	defer ctx.Done()
 	client, err := storage.NewClient(ctx, option.WithCredentialsFile(credsFilePath))
 	if err != nil {
 		return nil, err
@@ -67,6 +68,7 @@ func UploadBlobToStorage(client *storage.Client, bucketName, dataset, fileName s
 // CreateBucket Creates a Google storage bucket if it does not already exist
 func CreateBucket(client *storage.Client, projectID, bucketName string) error {
 	ctx := context.Background()
+	defer ctx.Done()
 	bkt := client.Bucket(bucketName)
 	if err := bkt.Create(ctx, projectID, nil); err != nil {
 		if e, ok := err.(*googleapi.Error); ok {

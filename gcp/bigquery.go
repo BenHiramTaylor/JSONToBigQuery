@@ -26,6 +26,7 @@ var (
 // GetBQClient Constructor func returns a Bigquery Client
 func GetBQClient(credsPath string, projectID string) (*bigquery.Client, error) {
 	ctx := context.Background()
+	defer ctx.Done()
 	client, err := bigquery.NewClient(ctx, projectID, option.WithCredentialsFile(credsPath))
 	if err != nil {
 		return nil, err
@@ -38,6 +39,7 @@ func GetBQClient(credsPath string, projectID string) (*bigquery.Client, error) {
 func updateTableSchema(client *bigquery.Client, datasetID, tableID string, timestampFields []string, sch avro.Schema) error {
 	var newSchema = bigquery.Schema{}
 	ctx := context.Background()
+	defer ctx.Done()
 	tableRef := client.Dataset(datasetID).Table(tableID)
 	tableMetadata, err := tableRef.Metadata(ctx)
 	if err != nil {
@@ -90,6 +92,7 @@ func updateTableSchema(client *bigquery.Client, datasetID, tableID string, times
 // Creates a dataset and then table if it doesnt already exist
 func createTable(client *bigquery.Client, datasetID, tableID string) error {
 	ctx := context.Background()
+	defer ctx.Done()
 	err := client.Dataset(datasetID).Create(ctx, &bigquery.DatasetMetadata{Name: datasetID})
 	if err != nil {
 		if e, ok := err.(*googleapi.Error); ok {
@@ -112,6 +115,7 @@ func createTable(client *bigquery.Client, datasetID, tableID string) error {
 // Function used only in this package, used to retunr the schema of a table
 func getTableSchema(client *bigquery.Client, datasetID, tableID string) (bigquery.Schema, error) {
 	ctx := context.Background()
+	defer ctx.Done()
 	tableRef := client.Dataset(datasetID).Table(tableID)
 	meta, err := tableRef.Metadata(ctx)
 	if err != nil {
@@ -141,6 +145,7 @@ func LoadAvroToTable(client *bigquery.Client, bucketName, datasetID, tableID, av
 		return err
 	}
 	ctx := context.Background()
+	defer ctx.Done()
 	gcsRef := bigquery.NewGCSReference(fmt.Sprintf("gs://%v/%v/%v", bucketName, datasetID, avroFile))
 	gcsRef.SourceFormat = bigquery.Avro
 	gcsRef.Schema = tableSchema
